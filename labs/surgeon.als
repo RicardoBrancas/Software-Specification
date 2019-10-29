@@ -1,39 +1,43 @@
 module surgeon
 
 open util/ordering[Time]
+open util/boolean
 
 sig Time {}
 
 sig Patient {
+	operated: Bool -> Time
+} {
+	all t: Time-last | let t' = t.next | operated.t = True => operated.t' = True
 }
 
 one sig Surgeon {
-	gloves: (seq Glove) -> Time,
-	operated: set Patient -> Time
+	left: (seq Glove) -> Time,
+	right: (seq Glove) -> Time
 } {
-	all t: Time | not gloves.t.hasDups
+	all t: Time | not (left + right).t.hasDups
 }
 
 sig Glove {
-	mainSide : set Patient -> Time,
-	reverseSide : set Patient -> Time,
+	mainSide : Bool -> Time,
+	reverseSide :Bool -> Time,
 }
 
 abstract sig Event {
 	pre, post: Time
 }
 
-sig PutGlove extends Event {
+sig PutGloveRight extends Event {
 	glove: Glove,
 } {	
 	// pre-conditions
-	not glove in Surgeon.gloves.pre.elems
-	Surgeon.gloves.pre.isEmpty => no glove.reverseSide.pre
+	not glove in Surgeon.(left+right).pre.elems
+	Surgeon.right.pre.isEmpty => no glove.reverseSide.pre
 
 	// post-conditions
-	Surgeon.gloves.post = Surgeon.gloves.pre.add [glove]
-	glove.reverseSide.post = glove.reverseSide.pre + Surgeon.gloves.pre.last.mainSide.pre
-	Surgeon.gloves.pre.last.mainSide.post = Surgeon.gloves.pre.last.mainSide.pre +  glove.reverseSide.pre
+	Surgeon.right.post = Surgeon.right.pre.add [glove]
+	glove.reverseSide.post = glove.reverseSide.pre + Surgeon.right.pre.last.mainSide.pre
+	Surgeon.right.pre.last.mainSide.post = Surgeon.right.pre.last.mainSide.pre +  glove.reverseSide.pre
 
 	// frame conditions
 	noGloveChangeExceptAdding [glove]
@@ -41,12 +45,43 @@ sig PutGlove extends Event {
 	noContaminantChangeExcept [none, none]
 }
 
-sig TakeGlove extends Event {} {
+sig PutGloveLeft extends Event {
+	glove: Glove,
+} {	
 	// pre-conditions
-	some Surgeon.gloves.pre.elems
+	not glove in Surgeon.(left+right).pre.elems
+	Surgeon.left.pre.isEmpty => no glove.reverseSide.pre
 
 	// post-conditions
-	Surgeon.gloves.post = Surgeon.gloves.pre.butlast
+	Surgeon.left.post = Surgeon.left.pre.add [glove]
+	glove.reverseSide.post = glove.reverseSide.pre + Surgeon.left.pre.last.mainSide.pre
+	Surgeon.left.pre.last.mainSide.post = Surgeon.left.pre.last.mainSide.pre +  glove.reverseSide.pre
+
+	// frame conditions
+	noGloveChangeExceptAdding [glove]
+	noOperatedChangeExcept [none]
+	noContaminantChangeExcept [none, none]
+}
+
+sig TakeGloveRight extends Event {} {
+	// pre-conditions
+	some Surgeon.right.pre.elems
+
+	// post-conditions
+	Surgeon.right.post = Surgeon.right.pre.butlast
+	
+	// frame conditions
+	noGloveChangeExceptRemoving
+	noOperatedChangeExcept [none]
+	noContaminantChangeExcept [none, none]
+}
+
+sig TakeGloveLeft extends Event {} {
+	// pre-conditions
+	some Surgeon.left.pre.elems
+
+	// post-conditions
+	Surgeon.left.post = Surgeon.left.pre.butlast
 	
 	// frame conditions
 	noGloveChangeExceptRemoving
@@ -58,59 +93,57 @@ sig Operating extends Event {
 	patient: Patient
 } {
 	// pre-conditions
-	not patient in Surgeon.operated.pre
-	some Surgeon.gloves.pre.elems // surgeon must be wearing gloves
-	no (Surgeon.gloves.pre.last.mainSide.pre - patient) // glove should only be contaminated by this patitent
+	patient.operated.pre = False
+	some Surgeon.(left+right).pre.elems // surgeon must be wearing gloves
+	Surgeon.(left+right).pre.last.mainSide.pre = False // glove should not be contaminated
 
 	// post-conditions
-	patient in Surgeon.operated.post
-	patient in Surgeon.gloves.post.last.mainSide.post // patient contaminates glove
+	patient.operated.post = True
+	Surgeon.(left+right).post.last.mainSide.post = True // patient contaminates glove
 	
 	// frame conditions
 	noGloveChange
 	noOperatedChangeExcept [patient]
-	noContaminantChangeExcept [Surgeon.gloves.post.last, patient]
+	noContaminantChangeExcept [Surgeon.(left+right).post.last, patient]
 }
 
-sig Reverse extends Event {} {
+sig Reverse extends Event {
+	g: Glove
+} {
 	// pre-conditions
-	some Surgeon.gloves.pre
-	#Surgeon.gloves.pre = 1 => no Surgeon.gloves.pre.last.mainSide // can't reverse glove that will touch surgeon
+	g not in Surgeon.(left+right).pre.elems
 	
 	// post-conditions
-	Surgeon.gloves.post.last.mainSide.post = Surgeon.gloves.pre.last.reverseSide.pre
-	Surgeon.gloves.post.last.reverseSide.post = Surgeon.gloves.pre.last.mainSide.pre
-	Surgeon.gloves.post.butlast.last.mainSide.post = Surgeon.gloves.pre.butlast.last.mainSide.pre + Surgeon.gloves.pre.last.mainSide.pre
+	g.mainSide.post = g.reverseSide.pre
+	g.reverseSide.post = g.mainSide.pre
 	
 	// frame conditions
 	noGloveChange
 	noOperatedChangeExcept [none]
-	noContaminantChangeExceptG [Surgeon.gloves.post.last]
+	noContaminantChangeExceptG [Surgeon.(left+right).post.last]
 }
 
 pred init (t: Time) {
-	no Surgeon.gloves.t
-	no Surgeon.operated.t
-	no mainSide.t
-	no reverseSide.t
+	no Surgeon.(left+right).t
+	all p: Patient | p.operated.t = False
+	all g: Glove | g.(reverseSide + mainSide).t = False
 }
 
 pred Event.noOperatedChangeExcept (p: Patient) {
-	Surgeon.operated.(this.pre) in Surgeon.operated.(this.post)
-	Surgeon.operated.(this.post) in Surgeon.operated.(this.pre) + p
+	(Patient - p).operated.(this.post) = (Patient -p).operated.(this.pre)
 }
 
 pred Event.noGloveChangeExceptAdding (g: Glove) {
-	Surgeon.gloves.(this.post).butlast = Surgeon.gloves.(this.pre)
-	Surgeon.gloves.(this.post).elems - Surgeon.gloves.(this.pre).elems = g
+	Surgeon.(left+right).(this.post).butlast = Surgeon.(left+right).(this.pre)
+	Surgeon.(left+right).(this.post).elems - Surgeon.(left+right).(this.pre).elems = g
 }
 
 pred Event.noGloveChange {
-	Surgeon.gloves.(this.post) = Surgeon.gloves.(this.pre)
+	Surgeon.(left+right).(this.post) = Surgeon.(left+right).(this.pre)
 }
 
 pred Event.noGloveChangeExceptRemoving {
-	Surgeon.gloves.(this.post) = Surgeon.gloves.(this.pre).butlast
+	Surgeon.(left+right).(this.post) = Surgeon.(left+right).(this.pre).butlast
 }
 
 pred Event.noContaminantChangeExcept (g: Glove, p: Patient) {
@@ -134,5 +167,5 @@ fact Traces {
 }
 
 run {
-	Patient in Surgeon.operated.last
-} for 10 but exactly 2 Glove, exactly 3 Patient
+	all p: Patient | p.operated.last = True
+} for 15 but exactly 4 Glove, exactly 3 Patient
