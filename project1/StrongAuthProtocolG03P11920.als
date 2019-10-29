@@ -111,7 +111,7 @@ pred msg2IntruderToHonest[pre, post: Time, a: Agent, a2: Agent, n: Nonce, m: enc
 
 pred msg3HonestToIntruder[pre, post: Time, a: Agent, a2: Agent, m: encMsg] {}
 
-pred msg3IntruderToHonest[pre, post: Time, a: Agent, a2: Agent, n: Nonce, m: encMsg] {}
+pred msg3IntruderToHonest[pre, post: Time, a: Agent, a2: Agent, m: encMsg] {}
 
 fact Traces {
 	first.init
@@ -120,6 +120,63 @@ fact Traces {
 		msg1IntruderToHonest [t, t', a, b, n]
 	}
 }
+
+//Requirements
+
+//1: 
+pred start_new_protocol [h: Honest, a: Agent, n:Nonce]{
+	all t: Time | let t'= t.next |
+	msg1HonestToIntruder[t,t',h,a,n]
+	//Duvida: 
+}
+//run start_new_protocol
+
+//2: 
+pred accept_new_protocol [h1: Honest, h2: Honest, n:Nonce]{
+	all t: Time | let t'= t.next | msg1IntruderToHonest[t,t', h1, h2,n ]
+	//Duvida: 
+}
+
+//3: 
+pred continue_protocol [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+	all t: Time | let t'= t.next |  (msg1HonestToIntruder[t,t', h1, h2,n ] && msg1IntruderToHonest[t,t', h1, h2,n ]) => ( msg2HonestToIntruder[t,t', h1, h2,n,m ] ||  msg3HonestToIntruder[t,t', h1, h2,m ])
+}
+
+//4: 
+pred receive_correct_message [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+	all t: Time | let t'= t.next  |  (msg2HonestToIntruder[t,t', h1,h2,n,m ] &&  msg3HonestToIntruder[t,t', h1, h2,m ]) => ( msg2IntruderToHonest[t,t', h1, h2,n,m ] ||  msg3IntruderToHonest[t,t', h1, h2,m ])
+}
+
+//5:
+pred receive_message [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+	all t: Time | let t'= t.next  | msg1HonestToIntruder[t,t', h1, h2,n] || msg2HonestToIntruder[t,t', h1, h2,n,m] || msg3HonestToIntruder[t,t', h1, h2,m ]
+}
+
+//6:
+pred send_message [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+	all t: Time | let t'= t.next  | msg1IntruderToHonest[t,t', h1, h2,n ] || msg2IntruderToHonest[t,t', h1, h2,n,m ] || msg3IntruderToHonest[t,t', h1, h2,m ]
+}
+
+//7:
+//ver diferença entre assert,pred,fact 
+pred initially {
+	//some Intruder.first
+}
+
+//8:
+pred encrypt_decrypt[k:Key, i:Intruder, e:encMsg] {
+	//is this okay?
+	e.id = i
+	e.key = k
+	
+	
+}
+
+//9:
+pred several_sessions {
+	//finish
+}
+
 
 run {
 } for 7 but exactly 2 Honest
