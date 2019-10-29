@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+<alloy>
+
+<view nodetheme="Martha">
+
+<projection> <type name="Time"/> </projection>
+
+<defaultnode/>
+
+<defaultedge/>
+
+<node>
+   <type name="Int"/>
+   <type name="String"/>
+   <type name="Time"/>
+   <type name="univ"/>
+   <type name="seq/Int"/>
+</node>
+
+<node color="Green">
+   <type name="Agent"/>
+</node>
+
+<node color="Yellow">
+   <type name="msg"/>
+</node>
+
+<node shape="Box" color="Blue">
+   <type name="Nonce"/>
+</node>
+
+<node shape="Box" color="Gray">
+   <type name="Key"/>
+</node>
+
+<node shape="Dbl Octagon">
+   <type name="msg2"/>
+</node>
+
+<node shape="Egg" color="Red">
+   <type name="Intruder"/>
+</node>
+
+<node shape="Ellipse">
+   <type name="Honest"/>
+</node>
+
+<node shape="Hexagon">
+   <type name="encMsg"/>
+</node>
+
+<node shape="Octagon">
+   <type name="msg1"/>
+</node>
+
+<node shape="Tpl Octagon">
+   <type name="msg3"/>
+</node>
+
+<node style="Bold">
+   <set name="First" type="ordering/Ord"/>
+   <set name="Next" type="ordering/Ord"/>
+</node>
+
+<node visible="no">
+   <type name="ordering/Ord"/>
+</node>
+
+<edge color="Black">
+   <relation name="nonce"> <type name="encMsg"/> <type name="Nonce"/> </relation>
+   <relation name="nonce"> <type name="msg1"/> <type name="Nonce"/> </relation>
+   <relation name="nonce"> <type name="msg2"/> <type name="Nonce"/> </relation>
+</edge>
+
+<edge color="Blue" constraint="no">
+   <relation name="sent"> <type name="Honest"/> <type name="Agent"/> <type name="Nonce"/> </relation>
+</edge>
+
+<edge color="Gray" style="Solid">
+   <relation name="keys"> <type name="Agent"/> <type name="Agent"/> <type name="Key"/> </relation>
+</edge>
+
+<edge color="Red" constraint="no">
+   <relation name="received"> <type name="Honest"/> <type name="Agent"/> <type name="Nonce"/> </relation>
+</edge>
+
+</view>
+
+</alloy>
