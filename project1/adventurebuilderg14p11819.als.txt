@@ -1,0 +1,903 @@
+open util/ordering[Date] as D0
+open util/ordering[Time] as T0
+open util/boolean
+open util/integer
+
+sig Time {}
+
+sig Date {}
+
+sig Client {}
+
+sig Broker extends Client {}
+
+sig Bank{
+	account: ( Account) -> Time //5
+}
+
+sig Account{
+	bank: one Bank, //4
+	client: one Client, //3
+	balance: Int -> Time
+}
+
+sig Hotel{
+	room: set Room //10
+}
+
+sig Room{
+	hotel: one Hotel,  //11
+	type: one RoomType //12
+}
+
+enum RoomType {Single, Double}
+
+
+sig RoomReservation{
+	room: one Room,
+	client: one Client,
+	arrivalDate: one Date,
+	departureDate: one Date
+} {
+ 	departureDate in D0/nexts[arrivalDate] //13
+}
+
+sig ActivityProvider{
+	activity: set Activity
+}
+
+sig Activity{
+	activityProvider: one ActivityProvider,
+	capacity: Int
+} { capacity > 0} //15
+
+sig ActivityOffer{
+	activity: one Activity,
+	beginDate: one Date,
+	endDate: one Date,
+	availability: Int -> Time
+} {
+	endDate in D0/nexts[beginDate] //16
+}
+
+sig ActivityReservation{
+	activityOffer: (ActivityOffer) -> Time,
+	client: one Client,
+	numberOfUsers: Int
+}{ numberOfUsers > 0 } //18
+
+enum AdventureState{ InitialState, PayedState, ConfirmedState} 
+
+sig Adventure{
+	client: one Client,
+	numberOfUsers: Int, 
+	broker: one Broker,
+	roomReservation: (RoomReservation) -> Time,
+	activityReservation: (ActivityReservation) -> Time,
+	cost: Int,
+	clientAccount: one Account,
+	brokerAccount: one Account,
+	state:  AdventureState one -> Time //21
+
+}{ 
+	numberOfUsers > 0 //22
+	client in clientAccount.client //27
+	broker in brokerAccount.client //28
+} 
+
+enum TypeOfPurchase{ Leisure, Business}
+
+sig Invoice{
+	client: one Client,
+	typeOfPurchasing: one TypeOfPurchase,
+	amount: Int,
+	tax: Int 
+}
+
+one sig AdventureBuilder{
+	adventure: (Adventure) -> Time,
+	account: (Account) -> Time,
+	activityReservation: (ActivityReservation) -> Time, 
+	roomReservation: (RoomReservation) -> Time,
+	activityOffer: (ActivityOffer) -> Time
+} {
+	//14
+	all disj roomReservation1, roomReservation2: RoomReservation | 
+	roomReservation1.room in roomReservation2.room implies
+		no ((D0/nexts[roomReservation1.arrivalDate] & 
+		D0/prevs[roomReservation1.departureDate]) & 
+		(D0/nexts[roomReservation2.arrivalDate] & 
+		D0/prevs[roomReservation2.departureDate])) 
+		or roomReservation1.departureDate in roomReservation2.arrivalDate
+		or roomReservation2.departureDate in roomReservation1.arrivalDate
+	//24
+ 	all disj roomReservation1, roomReservation2: RoomReservation | 
+	roomReservation1.room.hotel in roomReservation2.room.hotel
+}
+
+one sig IRS{
+	invoice: Invoice -> Time,
+	calculateTax: Int -> (Int -> TypeOfPurchase), 
+	calculateAnnualTaxReduction: Int -> Invoice
+} {
+	calculateTax.TypeOfPurchase.Int >= 0 //37
+	calculateAnnualTaxReduction.Invoice >= 0 
+}
+
+//AdventureBuilder initial state
+pred init [t:Time]{
+	(no AdventureBuilder.account.t)
+	(no AdventureBuilder.roomReservation.t)
+	(no AdventureBuilder.activityOffer.t)
+	(no AdventureBuilder.activityReservation.t)
+	(no AdventureBuilder.adventure.t)
+	(no IRS.invoice.t)
+}
+
+pred openAccount [pre,pos: Time, a: Account, c: Client, b: Bank]{
+
+	// PRE CONDITIONS
+	// check account is not already in AdventureBuilder
+	a not in (AdventureBuilder.account.pre) //2
+	
+	// *POS CONDITIONS*
+	// check account gets created in AdventureBuilder with the right attributese
+	a.balance.pos = 0
+	b in a.bank
+	c in a.client
+	a in (AdventureBuilder.account.pos)
+	
+	// FRAME CONDITIONS 
+	//accounts open before are still open after
+	//8, 9 
+	all accou: AdventureBuilder.account.pre | accou in AdventureBuilder.account.pos and accou.balance.pos >= 0
+	// check nothing changes in all the other accounts
+	all acc: Account - a | acc.balance.pos = acc.balance.pre
+	//23
+	all adv: AdventureBuilder.adventure.pre | adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre | 
+		roomReserv in AdventureBuilder.roomReservation.pos
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and 
+		activOffer.availability.pos >= 0 and activOffer.availability.pos <= activOffer.activity.capacity
+	all inv: IRS.invoice.pre | inv in IRS.invoice.pos and inv.client in AdventureBuilder.account.pre.client
+
+}
+
+
+//deposits the amount in an open account, the amount can be negative but the final balance must be positive
+//we consider that the account has already a positive balance (balance.pre)
+pred clientDeposit [pre,pos: Time, ac: Account, amount: Int] {
+	// *PRE CONDITIONS*
+	// check account exists in AdventureBuilder
+	ac in (AdventureBuilder.account.pre) //7
+	
+	//check that there is only one client associated witht the account
+	one ac.client
+
+	// check the balance of the account is positive
+	ac.balance.pre >= 0 
+	
+	// *POS CONDITIONS*
+	// check that the deposit won't leave the account balance negative
+	deposit[pre, pos, ac, amount] implies (ac.balance.pos >= 0)
+	ac in (AdventureBuilder.account.pos)
+
+
+	// *FRAME CONDITIONS* 
+	//8, 9 
+	all accou: AdventureBuilder.account.pre | accou in AdventureBuilder.account.pos and accou.balance.pos >= 0
+	all acc: Account - ac | acc.balance.pos = acc.balance.pre
+	//23
+	all adv: AdventureBuilder.adventure.pre | adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre | roomReserv in AdventureBuilder.roomReservation.pos
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and
+		(activOffer.availability.pos >= 0) and (activOffer.availability.pos <= activOffer.activity.capacity)
+	all inv: IRS.invoice.pre | inv in IRS.invoice.pos and inv.client in AdventureBuilder.account.pre.client
+
+
+}
+
+//add offer to AdventureBuilder
+pred makeActivityOffer [pre,pos: Time, offer: ActivityOffer, act: Activity, beginDt, endDt: Date, avail: Int]{
+	// *PRE CONDITIONS*
+	// check offer didn't exist before in AdvBuilder
+	offer not in (AdventureBuilder.activityOffer.pre)
+
+	// *POS CONDITIONS*
+	// check offer was created with the right values
+	offer.activity = act
+	offer.beginDate = beginDt
+	offer.endDate = endDt
+	offer.availability.pos = avail
+	offer.availability.pos <= act.capacity
+	offer in (AdventureBuilder.activityOffer.pos)
+
+	// *FRAME CONDITIONS* 
+	//23
+	all adv: AdventureBuilder.adventure.pre | adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre | roomReserv in AdventureBuilder.roomReservation.pos
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and
+		(activOffer.availability.pos >= 0) and (activOffer.availability.pos <= activOffer.activity.capacity)
+	all inv: IRS.invoice.pre | inv in IRS.invoice.pos and inv.client in AdventureBuilder.account.pre.client
+}
+
+pred createAdventure [pre,pos: Time, adv: Adventure, cl: Client, num: Int, 
+	brok: Broker, actReserv: ActivityReservation, roomReserv: RoomReservation, amount: Int,
+	fromAccount: Account, toAccount: Account]{
+
+	// *PRE CONDITIONS*
+	// check adventures didn't existe already
+	adv not in (AdventureBuilder.adventure.pre) //1
+
+	// check values are positive 
+	num > 0 
+	amount > 0
+
+	// check accounts aren't the same
+	fromAccount.client != toAccount.client
+	fromAccount.client = cl
+	toAccount.client = brok
+	
+	// check dates are consistent
+	actReserv.activityOffer.pre.endDate in D0/nexts[ actReserv.activityOffer.pre.beginDate]
+
+	// check accounts are in the AdventureBuilder
+	fromAccount in (AdventureBuilder.account.pre)
+	toAccount in (AdventureBuilder.account.pre)
+
+	// check that the adventure has no previous state
+	no adv.state.pre
+
+	actReserv not in (AdventureBuilder.activityReservation.pre)
+	roomReserv not in (AdventureBuilder.roomReservation.pre)	
+	actReserv.activityOffer.pre.endDate in D0/nexts[actReserv.activityOffer.pre.beginDate]	
+
+	// *POS CONDITIONS*
+	// check adventure attributes
+	adv.client = cl
+	adv.client = adv.clientAccount.client
+	adv.broker = brok
+	adv.broker = adv.brokerAccount.client
+	adv.numberOfUsers = num
+	adv.cost = amount 
+	adv.clientAccount = fromAccount 
+	adv.brokerAccount = toAccount
+	//25
+	actReserv.numberOfUsers = adv.numberOfUsers
+
+	adv.client = actReserv.client
+	adv.client = roomReserv.client
+
+	//check reservs are in the adventure
+	roomReserv in (adv.roomReservation.pos)
+	actReserv in adv.activityReservation.pos
+
+	// check accounts remain in AdventureBuilder
+	fromAccount in (AdventureBuilder.account.pos)
+	toAccount in (AdventureBuilder.account.pos)
+
+
+	// create activity offer
+	makeActivityOffer[pre, pos, actReserv.activityOffer.pre, actReserv.activityOffer.pre.activity, 
+					actReserv.activityOffer.pre.beginDate, actReserv.activityOffer.pre.endDate, actReserv.activityOffer.pre.availability.pre]
+	
+	// create reservations in AdventureBuilder
+	reserveActivity[pre,pos,actReserv, actReserv.activityOffer.pre, cl, num]
+	reserveRooms[pre, pos, roomReserv, roomReserv.room, cl, actReserv.activityOffer.pre.beginDate, actReserv.activityOffer.pre.endDate]
+	
+	//add initial state to adventure
+	adv.state.pos = InitialState
+
+	// check adventure was created 
+	adv in (AdventureBuilder.adventure.pos)
+
+
+	// *FRAME CONDITIONS* 
+	//23
+	all adv: AdventureBuilder.adventure.pre | adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre | roomReserv in AdventureBuilder.roomReservation.pos
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and
+		(activOffer.availability.pos >= 0) and (activOffer.availability.pos <= activOffer.activity.capacity)
+	all inv: IRS.invoice.pre | inv in IRS.invoice.pos and inv.client in AdventureBuilder.account.pre.client
+	
+}
+
+pred payAdventure [pre,pos: Time, advt: Adventure, cl: Client, br: Broker, num: Int, actReserv: ActivityReservation, 
+				roomReserv: RoomReservation, am: Int, fromAccount, toAccount: Account, inv: Invoice]{
+	/* PRE CONDITIONS*/
+
+	// check adventure is in AdventureBuilder
+	advt in (AdventureBuilder.adventure.pre) //26
+
+	// check adventure attributes
+	advt.numberOfUsers = num
+	actReserv in advt.activityReservation.pre 
+	roomReserv in advt.roomReservation.pre
+	advt.cost = am
+	//27
+	advt.clientAccount = fromAccount
+	//28
+	advt.brokerAccount = toAccount
+
+	// check account is in the initial state (it hasn't been payed yet)
+	advt.state.pre = InitialState //31
+
+	// check an invoice didn't exist in AdventureBuilder before
+	inv not in IRS.invoice.pre
+	inv.typeOfPurchasing = Leisure
+
+	// check accounts are in AdventureBuilder
+	fromAccount in (AdventureBuilder.account.pre)
+	toAccount in (AdventureBuilder.account.pre)
+
+	// *POS CONDITIONS*
+	//35, 36
+	makeInvoice[pre, pos, inv, inv.client, inv.typeOfPurchasing, inv.amount, inv.tax]
+	
+	// pay adventure from client
+	clientDeposit[pre, pos, fromAccount, minus[0,plus[am, inv.tax]]]
+
+	// pay the adventure to broker
+	clientDeposit[pre, pos, toAccount, am]
+
+	// check accounts remain in AdventureBuilder
+	fromAccount in (AdventureBuilder.account.pos)
+	toAccount in (AdventureBuilder.account.pos)
+	
+	// change adventure state to payed
+	advt.state.pos = PayedState
+	inv in IRS.invoice.pos
+
+	// *FRAME CONDITIONS* 
+	//23
+	all adv: AdventureBuilder.adventure.pre - advt| adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre - advt.roomReservation.pre |
+		 roomReserv in AdventureBuilder.roomReservation.pos 
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and
+		(activOffer.availability.pos >= 0) and (activOffer.availability.pos <= activOffer.activity.capacity)
+	all inv: IRS.invoice.pre | inv in IRS.invoice.pos and inv.client in AdventureBuilder.account.pre.client
+}
+
+pred cancelAdventure[pre,pos: Time, advt: Adventure, inv: Invoice]{
+	// *PRE CONDITIONS*
+	// check adventure exists in AdventureBuilder 
+	advt in (AdventureBuilder.adventure.pre)
+	advt.state.pre = PayedState
+	advt.activityReservation.pre in (AdventureBuilder.activityReservation.pre)	
+	advt.roomReservation.pre in (AdventureBuilder.roomReservation.pre)
+
+	advt.client in advt.roomReservation.pre.client  
+	advt.client in advt.activityReservation.pre.client 
+
+	//check invoice exists
+	inv.client in AdventureBuilder.account.pre.client
+	inv in IRS.invoice.pre
+	
+	// *POS CONDITIONS*
+	cancelActivityReservation[pre, pos, advt.activityReservation.pre]
+	cancelRoomReservations[pre, pos, advt.roomReservation.pre]
+
+	//30
+	advt.activityReservation.pos not in (AdventureBuilder.activityReservation.pos)	
+	advt.roomReservation.pos not in (AdventureBuilder.roomReservation.pos)	
+	//remove adventure from AdventureBuilder
+	advt not in (AdventureBuilder.adventure.pos)
+	
+	//deletes invoice
+	cancelInvoice[pre, pos, inv]
+	inv not in IRS.invoice.pos
+	
+	// *FRAME CONDITIONS* 
+	//8, 9 	
+	all accou: AdventureBuilder.account.pre | accou in AdventureBuilder.account.pos and accou.balance.pos = accou.balance.pre
+		and accou.balance.pos >= 0
+	//23
+	all adv: AdventureBuilder.adventure.pre - advt | adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre - advt.roomReservation.pre | 
+		roomReserv in AdventureBuilder.roomReservation.pos
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and
+		(activOffer.availability.pos >= 0) and (activOffer.availability.pos <= activOffer.activity.capacity)
+	all invo: IRS.invoice.pre - inv | invo in IRS.invoice.pos and invo.client in AdventureBuilder.account.pre.client
+}
+
+
+pred confirmAdventure[pre,pos: Time, advt: Adventure]{
+	/* PRE CONDITIONS*/
+	advt in (AdventureBuilder.adventure.pre)
+	advt.state.pre = PayedState //32
+
+	/* POS CONDITIONS*/ 
+	advt.state.pos = ConfirmedState
+	advt in (AdventureBuilder.adventure.pos)
+
+	/* FRAME CONDITIONS*/
+	//this adventure has attributes that must remain the same
+	advt.roomReservation.pre = advt.roomReservation.pos 
+	advt.activityReservation.pre = advt.activityReservation.pos 
+	advt.client in advt.roomReservation.pos.client
+	advt.client in advt.activityReservation.pos.client 
+	advt.clientAccount.client in advt.client
+	advt.brokerAccount.client in advt.broker
+	
+	//8, 9 
+	all accou: AdventureBuilder.account.pre | accou in AdventureBuilder.account.pos and accou.balance.pos = accou.balance.pre
+		and accou.balance.pos >= 0
+	//23
+	all adv: AdventureBuilder.adventure.pre - advt | adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre - advt.roomReservation.pre | 
+		roomReserv in AdventureBuilder.roomReservation.pos
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and
+		activOffer.availability.pos >= 0 and activOffer.availability.pos <= activOffer.activity.capacity
+	all inv: IRS.invoice.pre | inv in IRS.invoice.pos and inv.client in AdventureBuilder.account.pre.client
+}
+
+pred makeAnnualTaxRed[pre, pos: Time, accounts: set Account]{
+	/* PRE CONDITIONS*/
+	//check accounts are in AdevntureBuilder
+	all acc: accounts | acc in (AdventureBuilder.account.pre) and acc.balance.pre >= 0
+
+	/* POS CONDITIONS*/ 
+	//38, 41
+	all cl: Client | one ac: accounts|
+		cl in ac.client and cl in IRS.invoice.pre.client implies
+			clientDeposit[pre, pos, ac, IRS.calculateAnnualTaxReduction.Invoice]
+
+	//eliminate invoices
+	no (IRS.invoice.pos) //34
+
+	/* FRAME CONDITIONS*/
+	//8, 9 
+	all accou: AdventureBuilder.account.pre | accou in AdventureBuilder.account.pos and accou.balance.pos = accou.balance.pre
+		and accou.balance.pos >= 0
+	
+	all adv: AdventureBuilder.adventure.pre | adv in AdventureBuilder.adventure.pos and
+		adv.roomReservation.pre = adv.roomReservation.pos and
+		adv.activityReservation.pre = adv.activityReservation.pos and
+		adv.client in adv.roomReservation.pos.client and 
+		adv.client in adv.activityReservation.pos.client and
+		adv.state.pre = adv.state.pos
+	all roomReserv: AdventureBuilder.roomReservation.pre | roomReserv in AdventureBuilder.roomReservation.pos
+	//17, 20
+	all activOffer: AdventureBuilder.activityOffer.pre | activOffer in AdventureBuilder.activityOffer.pos and
+		activOffer.availability.pre = activOffer.availability.pos and
+		(activOffer.availability.pos >= 0) and (activOffer.availability.pos <= activOffer.activity.capacity)
+	all inv: IRS.invoice.pre | inv.client in AdventureBuilder.account.pre.client
+}
+
+// AUXILIAR OPERATIONS
+pred deposit [pre,pos: Time, ac: Account, amount: Int]{
+	ac.balance.pos = plus[ac.balance.pre, amount]
+}
+
+pred reserveActivity [pre,pos: Time, reserv: ActivityReservation, offer: ActivityOffer, cl: Client, number: Int]{
+	//19
+	offer.availability.pos = minus[offer.availability.pre, number]
+	reserv in (AdventureBuilder.activityReservation.pos)
+}
+
+pred cancelActivityReservation [pre,pos: Time, reserv: ActivityReservation]{ 
+	(reserv.activityOffer.pos).availability.pos = plus[(reserv.activityOffer.pre).availability.pre, reserv.numberOfUsers]
+	reserv not in (AdventureBuilder.activityReservation.pos)	
+}
+
+pred reserveRooms [pre,pos: Time, reservs: set RoomReservation, rooms: set Room, cl: Client, arrival, departure: Date]{
+	reservs in (AdventureBuilder.roomReservation.pos)	 
+}
+
+pred cancelRoomReservations [pre,pos : Time, reservs: set RoomReservation]{
+	reservs not in (AdventureBuilder.roomReservation.pos)	
+}
+
+pred makeInvoice [t, t': Time, inv: Invoice, cl: Client, type: TypeOfPurchase, price: Int, tx: Int]{
+	inv in IRS.invoice.t'
+}
+
+pred cancelInvoice [t, t': Time,inv: Invoice] {
+	inv not in IRS.invoice.t'
+}
+
+// REQUIREMENTS
+// 1 - an arbitary unopened account can be opened 
+pred possibleOpenAccount[t,t': Time, acc: Account]{
+	acc not in AdventureBuilder.account.t 
+	openAccount[t ,t' ,acc ,acc.client , acc.bank]	
+}
+run possibleOpenAccount
+
+// 2 - no opened account can be opened again
+assert accountOpenedOnce { 
+	all t: Time - T0/last | let t' = T0/next[t] |
+	no account: (AdventureBuilder.account.t) | openAccount[t,t',account, account.client, account.bank]
+}
+check accountOpenedOnce
+
+// 3  - an opened account can only have one client
+assert openAccountHasOneClient {
+	all t: Time - T0/last |
+	all account: (AdventureBuilder.account.t) | one account.client
+}
+check openAccountHasOneClient
+
+// 4 - an opened account can only have one bank
+assert openAccountHasOneBank{
+	all  t: Time - T0/last | 
+	all account: (AdventureBuilder.account.t) | one account.bank
+}
+check openAccountHasOneBank
+
+// 5 - bank can either be empty or have several accounts
+assert bankHasAccounts {
+	all  t: Time - T0/last | 
+	all bank: Bank |  some (bank.account.t) or lone (bank.account.t)
+}
+check bankHasAccounts 
+
+// 6 - client can have more than one open account
+assert clientHasOpenAccounts {
+	all t: Time - T0/last | 
+	all disj account1, account2: (AdventureBuilder.account.t) | lone account1.client & account2.client
+}
+check clientHasOpenAccounts
+
+// 7 - the action "deposit" can only be performed in opened accounts
+assert depositOnlyOpenAccount {
+	all t: Time - T0/last | let t' = T0/next[t] |
+	no account: Account - (AdventureBuilder.account.t) | clientDeposit [t,t',account, Int]
+}
+check depositOnlyOpenAccount
+
+// 8 - the balance in every opened account can not be negative
+assert balanceNotNegative{
+	all t: Time - T0/last |
+	all account: AdventureBuilder.account.t |
+		account.balance.t >= 0 
+}
+check balanceNotNegative
+
+// 9 - an account that is opened will stay opened 
+assert alwaysOpenAccount{
+	all t: Time - T0/last | let t' = T0/nexts[t] |
+	all acc: AdventureBuilder.account.t | acc in AdventureBuilder.account.t'
+}
+check alwaysOpenAccount
+
+// 10 - an hotel can several rooms
+assert hotelHasRooms {
+	all hotel: Hotel |  some (hotel.room) or lone (hotel.room)
+}
+check hotelHasRooms 
+
+// 11 - room is related to exactly one hotel 
+// this is assured in the sig Room
+assert roomBelongsToOneHotel {
+	all room: Room | one room.hotel
+}
+check roomBelongsToOneHotel
+
+// 12 - a room can be "Single" or "Double"
+// this is assured in the sig Room
+assert roomEitherSingleOrDouble {
+	all room: Room | 
+		room.type = Single or room.type = Double
+}
+
+check roomEitherSingleOrDouble
+
+// 13 - all room reservations in AdventureBuilder have arrival date before departure date
+assert arrivalDateBeforeDepartureDateInRoomReserv {
+	all t: Time - T0/last |
+	all roomReserv: AdventureBuilder.roomReservation.t | 
+			roomReserv.departureDate in D0/nexts[roomReserv.arrivalDate]   
+}
+
+check arrivalDateBeforeDepartureDateInRoomReserv
+
+// 14 - after creating two adventures (respective two room reservations) if a room is the same for both, the date must be different
+assert roomReservationDontOverlap {
+	all disj roomReservation1, roomReservation2: RoomReservation | 
+		roomReservation1.room in roomReservation2.room implies
+			no ((D0/nexts[roomReservation1.arrivalDate] & 
+			D0/prevs[roomReservation1.departureDate]) & 
+			(D0/nexts[roomReservation2.arrivalDate] & 
+			D0/prevs[roomReservation2.departureDate])) 
+			or roomReservation1.departureDate in roomReservation2.arrivalDate
+			or roomReservation2.departureDate in roomReservation1.arrivalDate
+ 
+}
+check roomReservationDontOverlap //couterexample
+
+// 15  - the capacity of an activity is always positive TRIVIAL
+assert positiveCapacity {
+	all activity: Activity| activity.capacity > 0
+}
+check positiveCapacity 
+
+// 16 - each activity offer added to Adventure Builder, the arrival date is less than the departure date.
+assert beginDateBeforeEndDateInActivityOffer {
+	all t: Time - T0/last |
+	all offer: AdventureBuilder.activityOffer.t |
+		offer.endDate in D0/nexts[offer.beginDate]	
+}
+check beginDateBeforeEndDateInActivityOffer
+
+// 17 - each activity offer  added to Adventure Builder, the availability is positive and less than the capacity for the corresponding activity 
+assert availabilityCheck {
+	all t: Time - T0/last |
+	all offer: AdventureBuilder.activityOffer.t |
+		(offer.availability.t >= 0) and (offer.availability.t <= offer.activity.capacity)
+}
+check availabilityCheck 
+
+// 18 - each activity reservation added to Adventure Builder, the number of Users is bigger than 0 TRIVIAL
+assert numberOfPeoplePositive {
+	all  t: Time - T0/first | 
+	all activityReserv: (AdventureBuilder.activityReservation.t) | 
+		activityReserv.numberOfUsers > 0		
+}
+check numberOfPeoplePositive 
+
+// 19 - availability decreases with reservation
+pred availabilityDecreasesWithReservation[t, t': Time, reserv: ActivityReservation, offer: ActivityOffer, cl: Client, num: Int ] {
+	reserveActivity[t,t', reserv, offer, cl, num]
+	reserv.activityOffer.t'.availability.t' = minus[reserv.activityOffer.t.availability.t, num]
+}
+run availabilityDecreasesWithReservation
+
+// 20  - activity offer in AdventureBuilder remain there
+assert offersRemainInAdventureBuilder {
+	all t: Time - T0/last | let t' = T0/next[t] |
+	all offer: AdventureBuilder.activityOffer.t |
+		offer in (AdventureBuilder.activityOffer.t')
+}
+check offersRemainInAdventureBuilder 
+
+
+// 21 - an adventure only has one state
+assert adventureIsInOneState {
+	all  t: Time - T0/last |
+	all adventure: (AdventureBuilder.adventure.t) |  one adventure.state.t
+}
+check adventureIsInOneState
+
+
+// 23 - for each adventure in AdventureBuilder, the client in the reservations is the same
+assert clientCheckInAdventure {
+	all t: Time - T0/last  |
+	all adventure: AdventureBuilder.adventure.t | 
+		adventure.client in adventure.activityReservation.t.client and
+		adventure.client in adventure.roomReservation.t.client 
+}
+check clientCheckInAdventure 
+
+// 24 - for each adventure in AdventureBuilder, all the room reservations are at the same hotel
+assert roomReservsSameHotel {
+	all t: Time - T0/last | 
+	all adventure: AdventureBuilder.adventure.t | 
+		all disj roomReserv1, roomReserv2: adventure.roomReservation.t | 
+		(roomReserv1.room.hotel in roomReserv2.room.hotel)
+}
+check roomReservsSameHotel 
+
+// 25 
+assert numberOfPeopleReservCheck {
+}
+// not done
+check numberOfPeopleReservCheck
+
+
+// 26 - it is only possible to pay for adventures in AdventureBuilder
+assert onlyPayForAdventuresInAB {
+	all t: Time - T0/last | let t' = T0/next[t] |
+	no adventure: Adventure - AdventureBuilder.adventure.t |
+		payAdventure[t,t', adventure, adventure.client, adventure.broker, adventure.numberOfUsers, 
+		adventure.activityReservation.t, adventure.roomReservation.t, adventure.cost, 
+		adventure.clientAccount, adventure.brokerAccount, Invoice] 
+} 
+check onlyPayForAdventuresInAB
+
+//27 - for each adventure the client account used to pay for the adventure is for the same client the adventure is created for
+assert adventureClientSameAccountClient{
+	all t: Time - T0/last | 
+	all adventure: AdventureBuilder.adventure.t | 
+		(adventure.clientAccount.client = adventure.client) 
+}
+check adventureClientSameAccountClient 
+
+//28 - for each adventure the broker account used to credit for the adventure is for the same broker that arranged the adventure
+assert adventureBrokerSameAccountBroker{
+	all t: Time - T0/last | 
+	all adventure: AdventureBuilder.adventure.t | 
+		(adventure.brokerAccount.client = adventure.broker) 
+}
+check adventureBrokerSameAccountBroker
+
+//29 - only adventures that are payed for can be cancelled 
+pred onlyAdventurePayedCanCancel[t, t': Time, adv: Adventure, inv: Invoice] {
+	adv in (AdventureBuilder.adventure.t)
+	adv.state.t in PayedState 
+	inv in IRS.invoice.t
+	cancelAdventure[t, t', adv, inv]
+	inv not in IRS.invoice.t'
+}
+run onlyAdventurePayedCanCancel
+
+//30 - activity reservations can not disappear unless the corresponding adventure is cancelled 
+pred activityReservationsCantDisappearUnlessCancelled[t, t': Time, adv: Adventure, inv: Invoice] {
+	adv in AdventureBuilder.adventure.t
+	adv.activityReservation.t' not in AdventureBuilder.activityReservation.t'
+	cancelAdventure[t, t', adv, inv]	
+}
+
+run activityReservationsCantDisappearUnlessCancelled
+
+// 31 - if an adventure was payed it means it was created 
+assert adventurePayedThenCreated {
+	all t: Time - T0/last | let t' = T0/next[t] |
+	all adventure: AdventureBuilder.adventure.t |
+	 	payAdventure[t, t', adventure, adventure.client, adventure.broker, adventure.numberOfUsers, 
+		adventure.activityReservation.t, adventure.roomReservation.t,  adventure.cost, 
+		adventure.clientAccount, adventure.brokerAccount, Invoice] 
+		implies adventure.state.t' = PayedState 
+		implies adventure.state.t = InitialState 
+	
+}
+check adventurePayedThenCreated  
+
+// 32 -if an adventure is confirmed it has been payed
+assert adventureConfirmedThenPayed {
+	all t: Time - T0/last | let t' = T0/next[t] |
+	all adventure: AdventureBuilder.adventure.t |
+		confirmAdventure[t, t', adventure] 	
+		implies adventure.state.t' = ConfirmedState 
+		implies adventure.state.t = PayedState
+
+}
+check adventureConfirmedThenPayed
+
+//33 - clients with invoices have open accounts
+assert clientsHaveOpenAccount {
+	all  t: Time - T0/last |
+	all cl: IRS.invoice.t.client |
+		cl in AdventureBuilder.account.t.client 
+}
+check clientsHaveOpenAccount
+
+//34 - invoices can disappear
+pred invoicesCanDisappear[t, t': Time, inv: Invoice, accounts: set Account] {	
+	inv in IRS.invoice.t
+	inv.client in accounts.client
+	makeAnnualTaxRed[t, t', accounts]
+	inv not in IRS.invoice.t'
+}
+run invoicesCanDisappear
+
+//35  - if an adventure is payed it has a invoice created
+assert adventurePayedThenInvoiceCreated  { 
+	all  t: Time - T0/last | let t' = T0/next[t] |
+	all adventure: (AdventureBuilder.adventure.t) | 
+		payAdventure[t, t', adventure, adventure.client, adventure.broker, adventure.numberOfUsers, 
+		adventure.activityReservation.t, adventure.roomReservation.t,  adventure.cost, 
+		adventure.clientAccount, adventure.brokerAccount, Invoice] 
+		implies
+		(one invoice: IRS.invoice.t' | (adventure.cost = invoice.amount and adventure.client = invoice.client))
+		
+}
+check adventurePayedThenInvoiceCreated
+
+//36 - an invoce cannot be created unless the adventure is payed
+pred invoiceCreatedIfPaymentDone[t, t': Time, inv: Invoice, adventure: Adventure] {
+	adventure.state.t != PayedState
+	adventure.state.t' = PayedState
+	makeInvoice[t, t', inv, adventure.client, Invoice.typeOfPurchasing, inv.amount, inv.tax]	
+}
+run invoiceCreatedIfPaymentDone
+
+
+//38 
+pred taxReductionCreditsOneAccount {
+	
+}
+// not done
+run taxReductionCreditsOneAccount
+
+//39 - balances cannot decrease with annual tax reduction
+pred balancesCannotDecrease  [t,t': Time, acc: Account] {
+	acc in AdventureBuilder.account.t
+	makeAnnualTaxRed[t, t', acc]
+	acc.balance.t  <= acc.balance.t'
+}
+run balancesCannotDecrease
+
+//40 - balances can decrease with annual tax reduction
+pred balancesCanIncrease  [t,t': Time, acc: Account] {
+	acc in AdventureBuilder.account.t
+	makeAnnualTaxRed[t, t', acc]
+	acc.balance.t  <= acc.balance.t'
+}
+run balancesCanIncrease
+
+//41 - account that have clients without invocies are not affected by annual tax reduction
+pred accountsNoInvoicesNotAffectedAnnualTaxRed[t, t': Time, cl: Client, acc: set Account] {
+	cl not in IRS.invoice.t.client
+	acc in AdventureBuilder.account.t
+	cl in acc.client
+	all ac: acc | cl = ac.client and
+	makeAnnualTaxRed[t, t', acc] and acc.balance.t = acc.balance.t'
+	
+}
+run accountsNoInvoicesNotAffectedAnnualTaxRed
+
+fact transitions {
+	init [T0/first]
+	all t: Time  - T0/last | let t' = T0/next[t] |
+	some client: Client, 
+			broker: Broker,
+			bank: Bank,
+			account1, account2: Account,
+			roomReserv: RoomReservation,
+			activity: Activity, 
+			activityReserv: ActivityReservation,
+			activityOffer: ActivityOffer,
+			adventure: Adventure,
+			invoice: Invoice
+		|
+		openAccount[t, t', account1, client, bank]
+		or clientDeposit[t, t', account1, Int]
+		or makeActivityOffer[t, t', activityOffer, activity, Date, Date, Int]
+		or createAdventure[t, t', adventure, client, Int, broker, activityReserv,  roomReserv, Int, account1, account2]
+		or payAdventure[t, t', adventure, client, broker, Int , activityReserv,  roomReserv, Int, account1, account2, invoice]
+		or cancelAdventure[t, t', adventure, invoice]
+		or confirmAdventure[t, t', adventure]
+		or makeAnnualTaxRed[t, t',account1]
+}
+
+run init
