@@ -25,30 +25,15 @@ sig Honest extends Agent {
 }
 
 one sig Intruder extends Agent {
-	msgs: msg -> Time
+	encs: Enc lone -> Time,
+	nonces: Nonce -> Time
 }
 
 sig Key {
 }
 
-abstract sig msg {}
-
-sig msg1 extends msg {
-	id: Agent,
-	nonce: Nonce
-}
-
-sig msg2 extends msg {
-	nonce: Nonce,
-	enc: encMsg
-}
-
-sig msg3 extends msg {
-	enc: encMsg
-}
-
-sig encMsg extends msg {
-	id: Agent,
+sig Enc {
+	id: Agent, //FIX
 	nonce: Nonce,
 	key: Key
 }
@@ -62,13 +47,22 @@ pred noSentExcept [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
 	h.sent.post - (a -> n) = h.sent.pre
 }
 
-pred noReceivedExcept [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
+pred noReceivedExceptAdding [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
 	all h': Honest - h | h'.received.post = h'.received.pre
 	h.received.post - (a -> n) = h.received.pre
 }
 
-pred noMessagesChangeExcept [pre, post: Time, m: msg] {
-	Intruder.msgs.post - m = Intruder.msgs.pre
+pred noReceivedExceptRemoving [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
+	all h': Honest - h | h'.received.post = h'.received.pre
+	h.received.post = h.received.pre - (a -> n)
+}
+
+pred noMessagesChangeExcept [pre, post: Time, m: Enc] {
+	Intruder.encs.post - m = Intruder.encs.pre
+}
+
+pred noNoncesChangeExcept [pre, post: Time, n: Nonce] {
+	Intruder.nonces.post - n = Intruder.nonces.pre
 }
 
 pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
@@ -77,49 +71,115 @@ pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
 
 // TODO: is a Honest or Agent??
 pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
-  one m: msg1 | m.id = a and m.nonce = n and {
-  	// pre-conds
+  	// pre-cond
   	fresh [n, pre]
   	
-  	// post-conds
+  	// post-cond
   	(b -> n) in a.sent.post
-  	m in Intruder.msgs.post
+  	n in Intruder.nonces.post
 
   	// frame
   	noSentExcept [pre, post, a, b, n]
-  	noReceivedExcept [pre, post, none, none, none]
-  	noMessagesChangeExcept [pre, post, m]
-  }
+  	noReceivedExceptAdding [pre, post, none, none, none]
+  	noMessagesChangeExcept [pre, post, none]
+	noNoncesChangeExcept [pre, post, n]
 }
 
 pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
-	one m: msg1 | m.id = a and m.nonce = n and {
-  		// pre-conds
-  		
+  	// pre-cond
+	n in Intruder.nonces.pre
   	
-  		// post-conds
-  		(a -> n) in b.received.post
+  	// post-cond
+  	(a -> n) in b.received.post
 
-  		// frame
-  		noSentExcept [pre, post, none, none, none]
-  		noReceivedExcept [pre, post, b, a, n]
-  		noMessagesChangeExcept [pre, post, none]
-	}
+  	// frame
+  	noSentExcept [pre, post, none, none, none]
+  	noReceivedExceptAdding [pre, post, b, a, n]
+  	noMessagesChangeExcept [pre, post, none]
+	noNoncesChangeExcept [pre, post, none]
+
 }
 
-pred msg2HonestToIntruder[pre, post: Time, a: Agent, a2: Agent, n: Nonce, m: encMsg] {}
+pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
+	// pre-cond
+	fresh [n, pre]
+	m.id = b //FIX
+	m.nonce in a.(b.received.pre)
+	m.key = keys [b, a]
 
-pred msg2IntruderToHonest[pre, post: Time, a: Agent, a2: Agent, n: Nonce, m: encMsg] {}
+	// post-cond
+	(a -> n) in b.sent.post
+	m in Intruder.encs.post
+	n in Intruder.nonces.post
+	m.nonce not in a.(b.received.post)
 
-pred msg3HonestToIntruder[pre, post: Time, a: Agent, a2: Agent, m: encMsg] {}
+	// frame
+	noSentExcept [pre, post, b, a, n]
+  	noReceivedExceptRemoving [pre, post, b, a, m.nonce]
+  	noMessagesChangeExcept [pre, post, m]
+	noNoncesChangeExcept [pre, post, n]
+}
 
-pred msg3IntruderToHonest[pre, post: Time, a: Agent, a2: Agent, m: encMsg] {}
+pred msg2IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
+	// pre-cond - intruder
+	n in Intruder.nonces.pre
+	m in Intruder.encs.pre //TODO: can the intruder fabricate encoded messages?
+	// pre-cond - alice
+	m.key = keys [a, b]
+	m.nonce in b.(a.sent.pre)
+	m.id = b //FIX
+
+	// post-cond
+	(b -> n) in a.received.post
+		
+	// frame
+	noSentExcept [pre, post, none, none, none]
+  	noReceivedExceptAdding [pre, post, a, b, n]
+  	noMessagesChangeExcept [pre, post, none]
+	noNoncesChangeExcept [pre, post, none]
+}
+
+pred msg3HonestToIntruder[pre, post: Time, a: Honest, b: Honest, m: Enc] {
+	// pre-cond
+	m.key = keys [a, b]
+	m.id = a //FIX
+	m.nonce in b.(a.received.pre)
+
+	// post-cond
+	m in Intruder.encs.post
+	m.nonce not in b.(a.received.post)
+
+	// frame
+	noSentExcept [pre, post, none, none, none]
+  	noReceivedExceptRemoving [pre, post, a, b, m.nonce]
+  	noMessagesChangeExcept [pre, post, m]
+	noNoncesChangeExcept [pre, post, none]
+}
+
+pred msg3IntruderToHonest[pre, post: Time, a: Honest, b: Honest, m: Enc] {
+	// pre-cond
+	m.key = keys [a, b]
+	m.nonce in a.(b.sent.pre)
+	m.id = a //FIX
+
+	// post-cond
+
+	// frame
+	noSentExcept [pre, post, none, none, none]
+  	noReceivedExceptRemoving [pre, post, none, none, none]
+  	noMessagesChangeExcept [pre, post, none]
+	noNoncesChangeExcept [pre, post, none]
+}
 
 fact Traces {
 	first.init
-	all t: Time-last | let t' = t.next | one a : Honest, b: Honest, n: Nonce {
+	all t: Time-last | let t' = t.next | some a : Honest, b: Honest, n: Nonce, m: Enc {
 		msg1HonestToIntruder [t, t', a, b, n] or
-		msg1IntruderToHonest [t, t', a, b, n]
+		msg1IntruderToHonest [t, t', a, b, n] or
+		msg2HonestToIntruder [t, t', a, b, n, m] or
+		msg2IntruderToHonest [t, t', a, b, n, m] or
+		msg3HonestToIntruder [t, t', a, b, m] or
+		msg3IntruderToHonest [t, t', a, b, m]
 	}
 }
 
@@ -140,22 +200,22 @@ pred accept_new_protocol [h1: Honest, h2: Honest, n:Nonce]{
 }
 
 //3: 
-pred continue_protocol [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+pred continue_protocol [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
 	all t: Time | let t'= t.next |  (msg1HonestToIntruder[t,t', h1, h2,n ] && msg1IntruderToHonest[t,t', h1, h2,n ]) => ( msg2HonestToIntruder[t,t', h1, h2,n,m ] ||  msg3HonestToIntruder[t,t', h1, h2,m ])
 }
 
 //4: 
-pred receive_correct_message [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+pred receive_correct_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
 	all t: Time | let t'= t.next  |  (msg2HonestToIntruder[t,t', h1,h2,n,m ] &&  msg3HonestToIntruder[t,t', h1, h2,m ]) => ( msg2IntruderToHonest[t,t', h1, h2,n,m ] ||  msg3IntruderToHonest[t,t', h1, h2,m ])
 }
 
 //5:
-pred receive_message [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+pred receive_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
 	all t: Time | let t'= t.next  | msg1HonestToIntruder[t,t', h1, h2,n] || msg2HonestToIntruder[t,t', h1, h2,n,m] || msg3HonestToIntruder[t,t', h1, h2,m ]
 }
 
 //6:
-pred send_message [h1: Honest, h2: Honest, n:Nonce, m: encMsg]{
+pred send_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
 	all t: Time | let t'= t.next  | msg1IntruderToHonest[t,t', h1, h2,n ] || msg2IntruderToHonest[t,t', h1, h2,n,m ] || msg3IntruderToHonest[t,t', h1, h2,m ]
 }
 
@@ -166,7 +226,7 @@ pred initially {
 }
 
 //8:
-pred encrypt_decrypt[k:Key, i:Intruder, e:encMsg] {
+pred encrypt_decrypt[k:Key, i:Intruder, e:Enc] {
 	// duvida:is this okay?
 	e.id = i
 	e.key = k
@@ -186,7 +246,7 @@ pred several_sessions  {
 
 //10:
 // duvida:and da ordem as mensagens?
-pred sequence_messages[h1: Honest, h2: Honest, n:Nonce, m: encMsg] {
+pred sequence_messages[h1: Honest, h2: Honest, n:Nonce, m: Enc] {
 	all t: Time | let t'= t.next |
 	msg1HonestToIntruder[t,t',h1,h2,n] and
 	msg1IntruderToHonest[t,t', h1, h2,n ] and
@@ -198,10 +258,10 @@ pred sequence_messages[h1: Honest, h2: Honest, n:Nonce, m: encMsg] {
 }
 
 //11:
-pred a_autenticate_b [pre,t:Time, a:Honest, b:Intruder,  n:Nonce, enc:encMsg]{
+pred a_autenticate_b [pre,t:Time, a:Honest, b:Intruder,  n:Nonce, enc:Enc]{
 
-	let t' = t.next |
-	(msg2IntruderToHonest[t,t', a, b,n,enc])
+	//let t' = t.next |
+	//(msg2IntruderToHonest[t,t', a, b,n,enc])
 	//mensagem que b envia no pre igual a enc ?? 
 	 
 	
@@ -222,7 +282,10 @@ pred someone_ini_protocol[a:Honest, b:Honest] {
 
 
 run {
-} for 7 but exactly 2 Honest
+	some t: Time-last | let t' = t.next | some a : Honest, b: Honest, n: Nonce, m: Enc {
+		msg1HonestToIntruder [t, t', a, b, n]
+	}
+} for 6 but exactly 2 Honest, exactly 2 Time
 
 
 

@@ -15,6 +15,7 @@
    <type name="Time"/>
    <type name="univ"/>
    <type name="seq/Int"/>
+   <set name="$t" type="Time"/>
 </node>
 
 <node color="Green">
