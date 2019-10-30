@@ -39,7 +39,7 @@ sig Enc {
 }
 
 pred init (t: Time) {
-	all h: Honest | no h.(sent+received).t
+	all h: Honest | no h.(sent+received).t  // 1
 }
 
 pred noSentExcept [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
@@ -66,13 +66,13 @@ pred noNoncesChangeExcept [pre, post: Time, n: Nonce] {
 }
 
 pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
-	let T = t+t.prevs | no Honest.(sent+received).T.n
+	let T = t+t.prevs | no Honest.(sent+received).T.n // 1
 }
 
 // TODO: is a Honest or Agent??
 pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-  	fresh [n, pre]
+  	fresh [n, pre] // 1
   	
   	// post-cond
   	(b -> n) in a.sent.post
@@ -185,13 +185,13 @@ fact Traces {
 
 //Requirements
 
-//1: 
-pred start_new_protocol [h: Honest, a: Agent, n:Nonce]{
-	all t: Time | let t'= t.next |
-	msg1HonestToIntruder[t,t',h,a,n]
-	//Duvida: 
+// 1
+assert start_new_protocol {
+  //all h: Honest |                  // h is not used
+	all t: Time - last |
+		some n: Nonce | fresh [n, t] //pre-cond of exch 1.1
 }
-//run start_new_protocol
+check start_new_protocol for 8 but exactly 8 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
 
 //2: 
 pred accept_new_protocol [h1: Honest, h2: Honest, n:Nonce]{
@@ -283,7 +283,7 @@ pred someone_ini_protocol[a:Honest, b:Honest] {
 
 run {
 
-} for 8 but exactly 2 Honest, exactly 7 Time
+} for 2
 
 
 
