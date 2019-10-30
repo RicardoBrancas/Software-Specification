@@ -167,7 +167,7 @@ pred initially {
 
 //8:
 pred encrypt_decrypt[k:Key, i:Intruder, e:encMsg] {
-	//is this okay?
+	// duvida:is this okay?
 	e.id = i
 	e.key = k
 	
@@ -177,30 +177,44 @@ pred encrypt_decrypt[k:Key, i:Intruder, e:encMsg] {
 //9:
 
 pred several_sessions  {
-	//finish
-	all t:Time, h:Honest |
+	// duvida:
+	all h:Honest | some t:Time |
 	#h.sent.t > 1 //no mesmo protocolo nao manda mais q 1?, logo diferentes
 				  //protocolos --> mais que 1 nounce enviado ?
 
 }
 
 //10:
-pred sequence_messages {
-	//finish
+// duvida:and da ordem as mensagens?
+pred sequence_messages[h1: Honest, h2: Honest, n:Nonce, m: encMsg] {
+	all t: Time | let t'= t.next |
+	msg1HonestToIntruder[t,t',h1,h2,n] and
+	msg1IntruderToHonest[t,t', h1, h2,n ] and
+	msg2HonestToIntruder[t,t', h1,h2,n,m ] and
+	msg2IntruderToHonest[t,t', h1, h2,n,m ] and
+	msg3HonestToIntruder[t,t', h1, h2,m ] and
+	msg3IntruderToHonest[t,t', h1, h2,m ]
+	
 }
 
 //11:
-pred a_autenticate_bob {
-	//finish
+pred a_autenticate_b [pre,t:Time, a:Honest, b:Intruder,  n:Nonce, enc:encMsg]{
+
+	let t' = t.next |
+	(msg2IntruderToHonest[t,t', a, b,n,enc])
+	//mensagem que b envia no pre igual a enc ?? 
+	 
+	
+	
 }
 
 //12:
-pred b_autenticate_a {
+pred b_autenticate_a [a:Honest, b:Honest]{
 	//finish
 }
 
 //13:
-pred someone_ini_protocol {
+pred someone_ini_protocol[a:Honest, b:Honest] {
 	//finish
 }
 
