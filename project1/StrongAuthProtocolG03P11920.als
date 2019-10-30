@@ -6,7 +6,7 @@ sig Time {}
 sig Nonce {}
 
 abstract sig Agent {
-	keys: Agent -> Key -> Time //TODO: cardinality restrictions
+	keys: Agent -> Key  //TODO: cardinality restrictions
 	
 }
 
@@ -29,7 +29,6 @@ one sig Intruder extends Agent {
 }
 
 sig Key {
-	keys: Key -> Time
 }
 
 abstract sig msg {}
@@ -176,12 +175,13 @@ pred encrypt_decrypt[k:Key, i:Intruder, e:encMsg] {
 }
 
 //9:
-// ter chave é signficado de ter protocol. Só pertence a 1 shared protocolo?
-//falta time?
+
 pred several_sessions  {
 	//finish
-	all t:Time - last |
-	all a : Agent|(some (a.keys.t)) or (lone (a.keys.t))//some  or lone
+	all t:Time, h:Honest |
+	#h.sent.t > 1 //no mesmo protocolo nao manda mais q 1?, logo diferentes
+				  //protocolos --> mais que 1 nounce enviado ?
+
 }
 
 //10:
