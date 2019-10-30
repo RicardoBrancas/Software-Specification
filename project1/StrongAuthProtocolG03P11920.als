@@ -25,7 +25,7 @@ sig Honest extends Agent {
 }
 
 one sig Intruder extends Agent {
-	encs: Enc lone -> Time,
+	encs: Enc -> Time,
 	nonces: Nonce -> Time
 }
 
@@ -282,10 +282,8 @@ pred someone_ini_protocol[a:Honest, b:Honest] {
 
 
 run {
-	some t: Time-last | let t' = t.next | some a : Honest, b: Honest, n: Nonce, m: Enc {
-		msg1HonestToIntruder [t, t', a, b, n]
-	}
-} for 6 but exactly 2 Honest, exactly 2 Time
+
+} for 8 but exactly 2 Honest, exactly 7 Time
 
 
 
