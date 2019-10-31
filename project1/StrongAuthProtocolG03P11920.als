@@ -186,18 +186,31 @@ fact Traces {
 //Requirements
 
 // 1
+/*
+	// pre-cond
+  	fresh [n, pre] // 1
+  	
+*/
 assert start_new_protocol {
   //all h: Honest |                  // h is not used
 	all t: Time - last |
 		some n: Nonce | fresh [n, t] //pre-cond of exch 1.1
 }
-check start_new_protocol for 8 but exactly 8 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
+//check start_new_protocol for 8 but exactly 8 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
 
-//2: 
-pred accept_new_protocol [h1: Honest, h2: Honest, n:Nonce]{
-	all t: Time | let t'= t.next | msg1IntruderToHonest[t,t', h1, h2,n ]
+
+
+//2:
+/* 
+n in Intruder.nonces.pre
+*/
+assert accept_new_protocol{
+		all t: Time - last | one n:Nonce | n in Intruder.nonces.t
 	//Duvida: 
 }
+
+//check accept_new_protocol 
+
 
 //3: 
 pred continue_protocol [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
