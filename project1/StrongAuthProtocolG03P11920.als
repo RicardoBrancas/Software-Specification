@@ -73,7 +73,7 @@ pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
 // TODO: is a Honest or Agent??
 pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-  	fresh [n, pre] // 1
+  	precond11 [pre, n] // 1
   	
   	// post-cond
   	(b -> n) in a.sent.post
@@ -86,9 +86,13 @@ pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 	noNoncesChangeExcept [pre, post, n]
 }
 
+pred precond11 [pre:Time, n: Nonce] {
+	fresh [n, pre] // 1
+}
+
 pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-	n in Intruder.nonces.pre
+	precond12 [pre, n]
   	
   	// post-cond
   	(a -> n) in b.received.post
@@ -98,15 +102,15 @@ pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	noReceivedExceptAdding [pre, post, b, a, n]
   	noMessagesChangeExcept [pre, post, none]
 	noNoncesChangeExcept [pre, post, none]
+}
 
+pred precond12 [pre: Time, n: Nonce] {
+	n in Intruder.nonces.pre
 }
 
 pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
 	// pre-cond
-	fresh [n, pre]
-	m.id = b //FIX
-	m.nonce in a.(b.received.pre)
-	m.key = keys [b, a]
+	precond21 [pre, a, b, n, m]
 
 	// post-cond
 	(a -> n) in b.sent.post
@@ -119,6 +123,13 @@ pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: En
   	noReceivedExceptRemoving [pre, post, b, a, m.nonce]
   	noMessagesChangeExcept [pre, post, m]
 	noNoncesChangeExcept [pre, post, n]
+}
+
+pred precond21 [pre: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
+	fresh [n, pre]
+	m.id = b //FIX
+	m.nonce in a.(b.received.pre)
+	m.key = keys [b, a]
 }
 
 pred msg2IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
@@ -186,49 +197,35 @@ fact Traces {
 
 //Requirements
 
-// 1
-/*
-	// pre-cond
-  	fresh [n, pre] // 1
-  	
-*/
+//1
 assert start_new_protocol {
   //all h: Honest |                  // h is not used
 	all t: Time - last |
-		some n: Nonce | fresh [n, t] //pre-cond of exch 1.1
+		some n: Nonce | precond11 [t, n]
 }
 check start_new_protocol for 5 but exactly 5 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
 
 
 
-//2:
+//2
 /* 
 n in Intruder.nonces.pre
 */
 assert accept_new_protocol {
 	all t: Time - last |
-		some n:Nonce | n in Intruder.nonces.t
-	//Duvida: 
+		some n:Nonce | precond12 [t, n]
 }
 check accept_new_protocol for 5
 
-//3: 
-
-assert continue_protocol{
-	all t: Time - last | let t' = t.next, t''= t'.next |
-	some n:Nonce, m: Enc, b: Honest, a: Honest |
-	(msg1HonestToIntruder[t,t', a, b,n ] &&
-	msg1IntruderToHonest[t,t', a, b,n ]) => 
-	( (fresh [n, t''] and
-      m.id = b and //FIX 
-      m.nonce in a.(b.received.t'') and
-	  m.key = keys [b, a])  ||
-	  (m.key = keys [a, b] and
-      m.id = a and//FIX 
-      m.nonce in b.(a.received.t''))) 
+//3
+assert continue_protocol {
+	all t: Time - last, t2: t.prevs, t1: t2.prevs, n:Nonce, m: Enc, b: Honest, a: Honest |
+		(msg1HonestToIntruder[t1.prev,t1, a, b,n ] 
+			&& msg1IntruderToHonest[t2.prev,t2, a, b,n ]) => 
+				precond21 [t, a, b, n, m]
+			
 }
-
-check continue_protocol for 5
+check continue_protocol for 5 but 1 Enc
 
 //4: 
 pred receive_correct_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
