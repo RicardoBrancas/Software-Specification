@@ -40,6 +40,7 @@ sig Enc {
 
 pred init (t: Time) {
 	all h: Honest | no h.(sent+received).t  // 1
+	some Intruder.nonces.t
 }
 
 pred noSentExcept [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
@@ -196,7 +197,7 @@ assert start_new_protocol {
 	all t: Time - last |
 		some n: Nonce | fresh [n, t] //pre-cond of exch 1.1
 }
-//check start_new_protocol for 8 but exactly 8 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
+check start_new_protocol for 5 but exactly 5 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
 
 
 
@@ -204,12 +205,12 @@ assert start_new_protocol {
 /* 
 n in Intruder.nonces.pre
 */
-assert accept_new_protocol{
-		all t: Time - last | one n:Nonce | n in Intruder.nonces.t
+assert accept_new_protocol {
+	all t: Time - last |
+		some n:Nonce | n in Intruder.nonces.t
 	//Duvida: 
 }
-
-//check accept_new_protocol 
+check accept_new_protocol for 5
 
 
 //3: 
