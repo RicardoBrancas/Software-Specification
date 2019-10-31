@@ -203,7 +203,7 @@ assert start_new_protocol {
 	all t: Time - last |
 		some n: Nonce | precond11 [t, n]
 }
-check start_new_protocol for 5 but exactly 5 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
+//check start_new_protocol for 5 but exactly 5 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
 
 
 
@@ -215,17 +215,16 @@ assert accept_new_protocol {
 	all t: Time - last |
 		some n:Nonce | precond12 [t, n]
 }
-check accept_new_protocol for 5
+//check accept_new_protocol for 5
 
 //3
 assert continue_protocol {
-	all t: Time - last, t2: t.prevs, t1: t2.prevs, n:Nonce, m: Enc, b: Honest, a: Honest |
-		(msg1HonestToIntruder[t1.prev,t1, a, b,n ] 
-			&& msg1IntruderToHonest[t2.prev,t2, a, b,n ]) => 
-				precond21 [t, a, b, n, m]
-			
+	all t: Time - last, t2: t.prevs, t1: t2.prevs, n:Nonce, m: Enc, b: Honest, a: Honest | some n': Nonce, m':Enc| no n'':Nonce
+		((msg1HonestToIntruder[t1.prev,t1, a, b,n ]) 
+			&& (msg1IntruderToHonest[t2.prev,t2, b, a,n ])) => 
+				precond21 [t, a, b, n', m] ||  precond21 [t, a, b,n'' , m'] 						
 }
-check continue_protocol for 5 but 1 Enc
+check continue_protocol for 5 but exactly 5 Nonce
 
 //4: 
 pred receive_correct_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
