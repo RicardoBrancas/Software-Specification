@@ -40,6 +40,7 @@ sig Enc {
 
 pred init (t: Time) {
 	all h: Honest | no h.(sent+received).t  // 1
+	some Intruder.nonces.t
 }
 
 pred noSentExcept [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
@@ -196,7 +197,7 @@ assert start_new_protocol {
 	all t: Time - last |
 		some n: Nonce | fresh [n, t] //pre-cond of exch 1.1
 }
-//check start_new_protocol for 8 but exactly 8 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
+//check start_new_protocol for 5 but exactly 5 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
 
 
 
@@ -205,16 +206,24 @@ assert start_new_protocol {
 n in Intruder.nonces.pre
 */
 assert accept_new_protocol{
-		all t: Time - last | one n:Nonce | n in Intruder.nonces.t
+		all t: Time - last | some n:Nonce | n in Intruder.nonces.t
 	//Duvida: 
 }
 
-//check accept_new_protocol 
+check accept_new_protocol for 5
 
 
-//3: 
-pred continue_protocol [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
-	all t: Time | let t'= t.next |  (msg1HonestToIntruder[t,t', h1, h2,n ] && msg1IntruderToHonest[t,t', h1, h2,n ]) => ( msg2HonestToIntruder[t,t', h1, h2,n,m ] ||  msg3HonestToIntruder[t,t', h1, h2,m ])
+//3:
+
+assert continue_protocol{
+	all t: Time - last | 
+	//(msg1HonestToIntruder[t,t', h1, h2,n ] && msg1IntruderToHonest[t,t', h1, h2,n ]) => ( msg2HonestToIntruder[t,t', h1, h2,n,m ] ||  msg3HonestToIntruder[t,t', h1, h2,m ])
+	some n:Nonce, m: Enc, b: Honest, a: Honest | 
+	fresh [n, t] and
+	m.id = b and //FIX 
+	m.nonce in a.(b.received.t) and
+	m.key = keys [b, a] 
+
 }
 
 //4: 
