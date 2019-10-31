@@ -212,11 +212,23 @@ assert accept_new_protocol {
 }
 check accept_new_protocol for 5
 
-
 //3: 
-pred continue_protocol [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
-	all t: Time | let t'= t.next |  (msg1HonestToIntruder[t,t', h1, h2,n ] && msg1IntruderToHonest[t,t', h1, h2,n ]) => ( msg2HonestToIntruder[t,t', h1, h2,n,m ] ||  msg3HonestToIntruder[t,t', h1, h2,m ])
+
+assert continue_protocol{
+	all t: Time - last | let t' = t.next, t''= t'.next |
+	some n:Nonce, m: Enc, b: Honest, a: Honest |
+	(msg1HonestToIntruder[t,t', a, b,n ] &&
+	msg1IntruderToHonest[t,t', a, b,n ]) => 
+	( (fresh [n, t''] and
+      m.id = b and //FIX 
+      m.nonce in a.(b.received.t'') and
+	  m.key = keys [b, a])  ||
+	  (m.key = keys [a, b] and
+      m.id = a and//FIX 
+      m.nonce in b.(a.received.t''))) 
 }
+
+check continue_protocol for 5
 
 //4: 
 pred receive_correct_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
