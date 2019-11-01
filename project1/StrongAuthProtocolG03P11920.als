@@ -220,13 +220,13 @@ check a_autenticate_b for 5 but exactly 5 Nonce
 
 //12:
 assert b_autenticate_a{
-	some t: Time, a:Honest, b:Honest, n:Nonce, m:Enc |
+	some t: Time, a:Honest, b:Honest, m:Enc |
 	let t' = t.next|  some t'': t.prevs | let t''' = t''.next |
-	msg3IntruderToHonest[t,t', b, a,n,m] => 
-	msg3HonestToIntruder[t'',t''', b, a,n,m ]
+	msg3IntruderToHonest[t,t', b, a,m] => 
+	msg3HonestToIntruder[t'',t''', b, a,m ]
 }
 
-check b_autenticate_a for 5 but exactly 5 Nonce
+check b_autenticate_a for 7 
 
 //13:
 pred someone_ini_protocol[a:Honest, b:Honest] {
