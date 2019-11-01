@@ -192,15 +192,14 @@ fact Traces {
 //Requirements
 
 //10:
-// duvida:and da ordem as mensagens?
 pred sequence_messages[h1: Honest, h2: Honest, n:Nonce, m: Enc] {
-	all t: Time | let t'= t.next |
-	msg1HonestToIntruder[t,t',h1,h2,n] and
-	msg1IntruderToHonest[t,t', h1, h2,n ] and
-	msg2HonestToIntruder[t,t', h1,h2,n,m ] and
-	msg2IntruderToHonest[t,t', h1, h2,n,m ] and
-	msg3HonestToIntruder[t,t', h1, h2,m ] and
-	msg3IntruderToHonest[t,t', h1, h2,m ]
+	all t: Time | let t1= t.next,t2= t1.next, t3= t2.next, t4= t3.next , t5= t6.next ,t6= t5.next|
+	msg1HonestToIntruder[t,t1,h1,h2,n] and //ou implica ?
+	msg1IntruderToHonest[t1,t2, h1, h2,n ] and
+	msg2HonestToIntruder[t2,t3, h1,h2,n,m ] and
+	msg2IntruderToHonest[t3,t4, h1, h2,n,m ] and
+	msg3HonestToIntruder[t4,t5, h1, h2,m ] and
+	msg3IntruderToHonest[t5,t6, h1, h2,m ]
 	
 }
 
