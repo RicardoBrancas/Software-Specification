@@ -6,8 +6,7 @@ sig Time {}
 sig Nonce {}
 
 abstract sig Agent {
-	keys: Agent -> Key  //TODO: cardinality restrictions
-	
+	keys: Agent -> Key
 }
 
 fact keysAreSymmetric {
@@ -20,8 +19,8 @@ fact keysAreUnique {
 }
 
 sig Honest extends Agent {
-	sent: Agent -> Nonce -> Time, //TODO: cardinality restrictions
-	received: Agent -> Nonce -> Time //TODO: cardinality restrictions
+	sent: Agent -> Nonce -> Time,
+	received: Agent -> Nonce -> Time
 }
 
 one sig Intruder extends Agent {
@@ -40,7 +39,9 @@ sig Enc {
 
 pred init (t: Time) {
 	all h: Honest | no h.(sent+received).t  // 1
-	some Intruder.nonces.t
+	some Intruder.nonces.t //9
+	some Intruder.encs.t //9
+	//TODO: the intruder also knows some keys????
 }
 
 pred noSentExcept [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
@@ -73,7 +74,7 @@ pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
 // TODO: is a Honest or Agent??
 pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-  	precond11 [pre, n] // 1
+  	fresh [n, pre] // 1
   	
   	// post-cond
   	(b -> n) in a.sent.post
@@ -86,13 +87,9 @@ pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 	noNoncesChangeExcept [pre, post, n]
 }
 
-pred precond11 [pre:Time, n: Nonce] {
-	fresh [n, pre] // 1
-}
-
 pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-	precond12 [pre, n]
+	n in Intruder.nonces.pre
   	
   	// post-cond
   	(a -> n) in b.received.post
@@ -104,13 +101,12 @@ pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 	noNoncesChangeExcept [pre, post, none]
 }
 
-pred precond12 [pre: Time, n: Nonce] {
-	n in Intruder.nonces.pre
-}
-
 pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
 	// pre-cond
-	precond21 [pre, a, b, n, m]
+	fresh [n, pre]
+	m.id = b //FIX
+	m.nonce in a.(b.received.pre)
+	m.key = keys [b, a]
 
 	// post-cond
 	(a -> n) in b.sent.post
@@ -123,13 +119,6 @@ pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: En
   	noReceivedExceptRemoving [pre, post, b, a, m.nonce]
   	noMessagesChangeExcept [pre, post, m]
 	noNoncesChangeExcept [pre, post, n]
-}
-
-pred precond21 [pre: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
-	fresh [n, pre]
-	m.id = b //FIX
-	m.nonce in a.(b.received.pre)
-	m.key = keys [b, a]
 }
 
 pred msg2IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
@@ -197,75 +186,6 @@ fact Traces {
 
 //Requirements
 
-//1
-assert start_new_protocol {
-  //all h: Honest |                  // h is not used
-	all t: Time - last |
-		some n: Nonce | precond11 [t, n]
-}
-//check start_new_protocol for 5 but exactly 5 Nonce //DUVIDA: why do we need to specify the exact number of Nonce??
-
-
-
-//2
-/* 
-n in Intruder.nonces.pre
-*/
-assert accept_new_protocol {
-	all t: Time - last |
-		some n:Nonce | precond12 [t, n]
-}
-//check accept_new_protocol for 5
-
-//3
-assert continue_protocol {
-	all t: Time - last, t2: t.prevs, t1: t2.prevs, n:Nonce, m: Enc, b: Honest, a: Honest | some n': Nonce, m':Enc| no n'':Nonce
-		((msg1HonestToIntruder[t1.prev,t1, a, b,n ]) 
-			&& (msg1IntruderToHonest[t2.prev,t2, b, a,n ])) => 
-				precond21 [t, a, b, n', m] ||  precond21 [t, a, b,n'' , m'] 						
-}
-check continue_protocol for 5 but exactly 5 Nonce
-
-//4: 
-pred receive_correct_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
-	all t: Time | let t'= t.next  |  (msg2HonestToIntruder[t,t', h1,h2,n,m ] &&  msg3HonestToIntruder[t,t', h1, h2,m ]) => ( msg2IntruderToHonest[t,t', h1, h2,n,m ] ||  msg3IntruderToHonest[t,t', h1, h2,m ])
-}
-
-//5:
-pred receive_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
-	all t: Time | let t'= t.next  | msg1HonestToIntruder[t,t', h1, h2,n] || msg2HonestToIntruder[t,t', h1, h2,n,m] || msg3HonestToIntruder[t,t', h1, h2,m ]
-}
-
-//6:
-pred send_message [h1: Honest, h2: Honest, n:Nonce, m: Enc]{
-	all t: Time | let t'= t.next  | msg1IntruderToHonest[t,t', h1, h2,n ] || msg2IntruderToHonest[t,t', h1, h2,n,m ] || msg3IntruderToHonest[t,t', h1, h2,m ]
-}
-
-//7:
-//ver diferença entre assert,pred,fact 
-pred initially {
-	//some Intruder.first
-}
-
-//8:
-pred encrypt_decrypt[k:Key, i:Intruder, e:Enc] {
-	// duvida:is this okay?
-	e.id = i
-	e.key = k
-	
-	
-}
-
-//9:
-
-pred several_sessions  {
-	// duvida:
-	all h:Honest | some t:Time |
-	#h.sent.t > 1 //no mesmo protocolo nao manda mais q 1?, logo diferentes
-				  //protocolos --> mais que 1 nounce enviado ?
-
-}
-
 //10:
 // duvida:and da ordem as mensagens?
 pred sequence_messages[h1: Honest, h2: Honest, n:Nonce, m: Enc] {
@@ -299,9 +219,6 @@ pred b_autenticate_a [a:Honest, b:Honest]{
 pred someone_ini_protocol[a:Honest, b:Honest] {
 	//finish
 }
-
-
-
 
 run {
 
