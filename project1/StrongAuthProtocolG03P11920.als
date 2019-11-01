@@ -207,22 +207,26 @@ pred sequence_messages[t:Time, h1: Honest, h2: Honest, n:Nonce, m: Enc] {
 run sequence_messages for 9 but exactly 2 Honest
 
 //11:
+
 assert a_autenticate_b{
-	all t: Time, a:Honest, b:Honest, n:Nonce, m:Enc |
-	let t' = t.next |
-	msg2IntruderToHonest[t,t', a, b,n,m] => m in Intruder.encs.(t.prevs)
-	//mensagem que b envia no pre igual a enc ?? 
+	some t: Time, a:Honest, b:Honest, n:Nonce, m:Enc |
+	let t' = t.next|  some t'': t.prevs | let t''' = t''.next |
+	msg2IntruderToHonest[t,t', a, b,n,m] => 
+	msg2HonestToIntruder[t'',t''', a, b,n,m ] 
 	 
-	
-	
 }
 
-//check a_autenticate_b for 5
+check a_autenticate_b for 5 but exactly 5 Nonce
 
 //12:
-pred b_autenticate_a [a:Honest, b:Honest]{
-	//finish
+assert b_autenticate_a{
+	some t: Time, a:Honest, b:Honest, n:Nonce, m:Enc |
+	let t' = t.next|  some t'': t.prevs | let t''' = t''.next |
+	msg3IntruderToHonest[t,t', b, a,n,m] => 
+	msg3HonestToIntruder[t'',t''', b, a,n,m ]
 }
+
+check b_autenticate_a for 5 but exactly 5 Nonce
 
 //13:
 pred someone_ini_protocol[a:Honest, b:Honest] {
