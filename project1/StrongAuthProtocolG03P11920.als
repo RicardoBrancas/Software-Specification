@@ -229,9 +229,15 @@ assert b_autenticate_a{
 check b_autenticate_a for 7 
 
 //13:
-pred someone_ini_protocol[a:Honest, b:Honest] {
-	//finish
+assert someone_ini_protocol {
+	some t: Time, a:Honest, b:Honest, m:Enc, n:Nonce |
+	let t' = t.next| some t'': t.prevs | let t''' = t''.next |
+	msg3HonestToIntruder[t,t', b, a,m ] => 
+	((msg1HonestToIntruder[t'',t''',a,b,n]) ||
+	(msg1HonestToIntruder[t'',t''',b,a,n]) )
 }
+
+check someone_ini_protocol for 7
 
 run {
 
