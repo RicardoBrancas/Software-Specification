@@ -5,6 +5,11 @@ sig Time {}
 
 sig Nonce {}
 
+fact enoughMessageElements {
+	//#Nonce >= #Time //1, 3
+	//#Enc >= #Time
+}
+
 abstract sig Agent {
 	keys: Agent -> Key
 }
@@ -38,8 +43,8 @@ sig Enc {
 }
 
 pred init (t: Time) {
-	all h: Honest | no h.(sent+received).t  // 1
-	some Intruder.nonces.t //9
+	all h: Honest | no h.(sent+received).t  //1, 3
+	some Intruder.nonces.t //2, 9
 	some Intruder.encs.t //9
 	//TODO: the intruder also knows some keys????
 }
@@ -74,7 +79,7 @@ pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
 // TODO: is a Honest or Agent??
 pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-  	fresh [n, pre] // 1
+  	fresh [n, pre] //1
   	
   	// post-cond
   	(b -> n) in a.sent.post
@@ -89,7 +94,7 @@ pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 
 pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-	n in Intruder.nonces.pre
+	n in Intruder.nonces.pre //2
   	
   	// post-cond
   	(a -> n) in b.received.post
@@ -103,7 +108,7 @@ pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 
 pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
 	// pre-cond
-	fresh [n, pre]
+	fresh [n, pre] //3
 	m.id = b //FIX
 	m.nonce in a.(b.received.pre)
 	m.key = keys [b, a]
@@ -222,7 +227,7 @@ pred someone_ini_protocol[a:Honest, b:Honest] {
 
 run {
 
-} for 2
+} for 7 but 2 Honest
 
 
 
