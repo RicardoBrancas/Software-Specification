@@ -192,27 +192,32 @@ fact Traces {
 //Requirements
 
 //10:
-pred sequence_messages[h1: Honest, h2: Honest, n:Nonce, m: Enc] {
-	all t: Time | let t1= t.next,t2= t1.next, t3= t2.next, t4= t3.next , t5= t6.next ,t6= t5.next|
-	msg1HonestToIntruder[t,t1,h1,h2,n] and //ou implica ?
+pred sequence_messages[t:Time, h1: Honest, h2: Honest, n:Nonce, m: Enc] {
+	let t1= t.next,t2= t1.next, t3= t2.next, t4= t3.next , 
+	t5= t4.next ,t6= t5.next| some n': Nonce, m' : Enc|
+	msg1HonestToIntruder[t,t1,h1,h2,n] and 
 	msg1IntruderToHonest[t1,t2, h1, h2,n ] and
-	msg2HonestToIntruder[t2,t3, h1,h2,n,m ] and
-	msg2IntruderToHonest[t3,t4, h1, h2,n,m ] and
-	msg3HonestToIntruder[t4,t5, h1, h2,m ] and
-	msg3IntruderToHonest[t5,t6, h1, h2,m ]
+	msg2HonestToIntruder[t2,t3, h1,h2,n',m ] and
+	msg2IntruderToHonest[t3,t4, h1, h2,n',m ] and
+	msg3HonestToIntruder[t4,t5, h1, h2,m' ] and
+	msg3IntruderToHonest[t5,t6, h1, h2,m' ]
 	
 }
 
-//11:
-pred a_autenticate_b [pre,t:Time, a:Honest, b:Intruder,  n:Nonce, enc:Enc]{
+run sequence_messages for 9 but exactly 2 Honest
 
-	//let t' = t.next |
-	//(msg2IntruderToHonest[t,t', a, b,n,enc])
+//11:
+assert a_autenticate_b{
+	all t: Time, a:Honest, b:Honest, n:Nonce, m:Enc |
+	let t' = t.next |
+	msg2IntruderToHonest[t,t', a, b,n,m] => m in Intruder.encs.(t.prevs)
 	//mensagem que b envia no pre igual a enc ?? 
 	 
 	
 	
 }
+
+//check a_autenticate_b for 5
 
 //12:
 pred b_autenticate_a [a:Honest, b:Honest]{
