@@ -74,6 +74,7 @@ pred noNoncesChangeExcept [pre, post: Time, n: Nonce] {
 
 pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
 	let T = t+t.prevs | no Honest.(sent+received).T.n // 1
+	all m: Intruder.encs.t | m.nonce != n
 }
 
 // TODO: is a Honest or Agent??
@@ -164,6 +165,7 @@ pred msg3HonestToIntruder[pre, post: Time, a: Honest, b: Honest, m: Enc] {
 
 pred msg3IntruderToHonest[pre, post: Time, a: Honest, b: Honest, m: Enc] {
 	// pre-cond
+	m in Intruder.encs.pre //TODO: can the intruder fabricate encoded messages?
 	m.key = keys [a, b]
 	m.nonce in a.(b.sent.pre)
 	m.id = a //FIX
@@ -206,35 +208,30 @@ run sequence_messages for 9 but exactly 2 Honest
 
 //11:
 assert a_autenticate_b{
-	some t: Time, a:Honest, b:Honest, n:Nonce, m:Enc |
-	let t' = t.next|  some t'': t.prevs | let t''' = t''.next |
-	msg2IntruderToHonest[t,t', a, b,n,m] => 
-	msg2HonestToIntruder[t'',t''', a, b,n,m ] 
-	 
+	all t: Time, a, b:Honest, n:Nonce, m:Enc | let t' = t.next | 
+	msg2IntruderToHonest[t, t', a, b, n, m] => 
+	(some t'': t.prevs, n': Nonce | let t''' = t''.next | msg2HonestToIntruder[t'', t''', a, b, n', m])
 }
-
-check a_autenticate_b for 5 but exactly 5 Nonce
+check a_autenticate_b for 5 but 2 Enc
 
 //12:
-assert b_autenticate_a{
-	some t: Time, a:Honest, b:Honest, m:Enc |
-	let t' = t.next|  some t'': t.prevs | let t''' = t''.next |
-	msg3IntruderToHonest[t,t', b, a,m] => 
-	msg3HonestToIntruder[t'',t''', b, a,m ]
+assert b_autenticate_a {
+	all t: Time, a, b: Honest, m: Enc | let t' = t.next |
+	msg3IntruderToHonest [t, t', a, b, m] =>
+	(some t_prev: t.prevs | let t_prev' = t_prev.next | msg3HonestToIntruder [t_prev, t_prev', a, b, m])
 }
-
-check b_autenticate_a for 7 
+check b_autenticate_a for 5
 
 //13:
 assert someone_ini_protocol {
-	some t: Time, a:Honest, b:Honest, m:Enc, n:Nonce |
-	let t' = t.next| some t'': t.prevs | let t''' = t''.next |
-	msg3HonestToIntruder[t,t', b, a,m ] => 
-	((msg1HonestToIntruder[t'',t''',a,b,n]) ||
-	(msg1HonestToIntruder[t'',t''',b,a,n]) )
+	all t: Time, a, b:Honest, m:Enc | let t' = t.next |
+	msg3HonestToIntruder[t, t', a, b, m] =>
+	(some t'': t.prevs, n: Nonce | let t''' = t''.next |
+		(msg1HonestToIntruder[t'', t''', a, b, n] ||
+		 msg1HonestToIntruder[t'', t''', b, a, n])
+	)
 }
-
-check someone_ini_protocol for 7
+check someone_ini_protocol for 3
 
 run {
 
