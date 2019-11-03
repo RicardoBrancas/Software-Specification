@@ -192,38 +192,49 @@ fact Traces {
 //Requirements
 
 //10:
-pred sequence_messages[t: Time, h1: Honest, h2: Honest, n, n': Nonce, m, m': Enc] {
-	let t1= t.next,t2= t1.next, t3= t2.next, t4= t3.next, t5= t4.next ,t6= t5.next|
-	msg1HonestToIntruder[t, t1, h1, h2, n] and //ou implica ?
-	msg1IntruderToHonest[t1, t2, h1, h2, n] and
-	msg2HonestToIntruder[t2, t3, h1, h2, n', m] and
-	msg2IntruderToHonest[t3, t4, h1, h2, n', m] and
-	msg3HonestToIntruder[t4, t5, h1, h2, m'] and
-	msg3IntruderToHonest[t5, t6, h1, h2, m']
-	
+pred sequence_messages[t:Time, h1: Honest, h2: Honest, n,n':Nonce, m,m': Enc] {
+	let t1= t.next,t2= t1.next, t3= t2.next, t4= t3.next , 
+	t5= t4.next ,t6= t5.next |
+	msg1HonestToIntruder[t,t1,h1,h2,n] and 
+	msg1IntruderToHonest[t1,t2, h1, h2,n ] and
+	msg2HonestToIntruder[t2,t3, h1,h2,n',m ] and
+	msg2IntruderToHonest[t3,t4, h1, h2,n',m ] and
+	msg3HonestToIntruder[t4,t5, h1, h2,m' ] and
+	msg3IntruderToHonest[t5,t6, h1, h2,m' ]
 }
 run sequence_messages for 9 but exactly 2 Honest
 
 //11:
-pred a_autenticate_b [pre,t:Time, a:Honest, b:Intruder,  n:Nonce, enc:Enc]{
-
-	//let t' = t.next |
-	//(msg2IntruderToHonest[t,t', a, b,n,enc])
-	//mensagem que b envia no pre igual a enc ?? 
+assert a_autenticate_b{
+	some t: Time, a:Honest, b:Honest, n:Nonce, m:Enc |
+	let t' = t.next|  some t'': t.prevs | let t''' = t''.next |
+	msg2IntruderToHonest[t,t', a, b,n,m] => 
+	msg2HonestToIntruder[t'',t''', a, b,n,m ] 
 	 
-	
-	
 }
+
+check a_autenticate_b for 5 but exactly 5 Nonce
 
 //12:
-pred b_autenticate_a [a:Honest, b:Honest]{
-	//finish
+assert b_autenticate_a{
+	some t: Time, a:Honest, b:Honest, m:Enc |
+	let t' = t.next|  some t'': t.prevs | let t''' = t''.next |
+	msg3IntruderToHonest[t,t', b, a,m] => 
+	msg3HonestToIntruder[t'',t''', b, a,m ]
 }
 
+check b_autenticate_a for 7 
+
 //13:
-pred someone_ini_protocol[a:Honest, b:Honest] {
-	//finish
+assert someone_ini_protocol {
+	some t: Time, a:Honest, b:Honest, m:Enc, n:Nonce |
+	let t' = t.next| some t'': t.prevs | let t''' = t''.next |
+	msg3HonestToIntruder[t,t', b, a,m ] => 
+	((msg1HonestToIntruder[t'',t''',a,b,n]) ||
+	(msg1HonestToIntruder[t'',t''',b,a,n]) )
 }
+
+check someone_ini_protocol for 7
 
 run {
 
