@@ -1,5 +1,4 @@
 open util/ordering[Time]
-open util/integer
 
 sig Time {}
 
@@ -207,13 +206,15 @@ pred sequence_messages[t:Time, h1: Honest, h2: Honest, n,n':Nonce, m,m': Enc] {
 	msg3HonestToIntruder[t4,t5, h1, h2,m' ] and
 	msg3IntruderToHonest[t5,t6, h1, h2,m' ]
 }
-run sequence_messages for 9 but exactly 2 Honest
+run sequence_messages for 7 but exactly 2 Honest
 
 //11:
 assert a_autenticate_b{
 	all t: Time, a, b:Honest, n:Nonce, m:Enc | let t' = t.next | 
 	msg2IntruderToHonest[t, t', a, b, n, m] => 
-	(some t'': t.prevs, n': Nonce | let t''' = t''.next | msg2HonestToIntruder[t'', t''', a, b, n', m])
+	((some t'': t.prevs, n': Nonce | let t''' = t''.next | msg2HonestToIntruder[t'', t''', a, b, n', m])
+	or
+	(some t_prev: t.prevs | let t_prev' = t_prev.next | msg3HonestToIntruder [t_prev, t_prev', b, a, m]))
 }
 check a_autenticate_b for 8
 
@@ -221,9 +222,11 @@ check a_autenticate_b for 8
 assert b_autenticate_a {
 	all t: Time, a, b: Honest, m: Enc | let t' = t.next |
 	msg3IntruderToHonest [t, t', a, b, m] =>
-	(some t_prev: t.prevs | let t_prev' = t_prev.next | msg3HonestToIntruder [t_prev, t_prev', a, b, m])
+	((some t_prev: t.prevs | let t_prev' = t_prev.next | msg3HonestToIntruder [t_prev, t_prev', a, b, m])
+	or
+	(some t_prev: t.prevs, n: Nonce | let t_prev' = t_prev.next | msg2HonestToIntruder [t_prev, t_prev', b, a, n, m]))
 }
-check b_autenticate_a for 6 but 3 Enc, 2 Honest
+check b_autenticate_a for 7
 
 //13:
 assert someone_ini_protocol {
