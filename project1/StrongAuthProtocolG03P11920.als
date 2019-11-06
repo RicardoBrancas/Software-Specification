@@ -97,7 +97,7 @@ pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 
 pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-	n in Intruder.nonces.pre //2
+	n in Intruder.nonces.pre or (some m:Enc | m.nonce = n and m.key in Intruder.keys [univ]) //2
   	
   	// post-cond
   	b.received.post [a, n] = Msg1
@@ -131,7 +131,7 @@ pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: En
 
 pred msg2IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
 	// pre-cond - intruder
-	n in Intruder.nonces.pre
+	n in Intruder.nonces.pre  or (some m':Enc | m'.nonce = n and m'.key in Intruder.keys [univ])
 	m in Intruder.encs.pre //TODO: can the intruder fabricate encoded messages?
 	// pre-cond - alice
 	m.key = keys [a, b]
