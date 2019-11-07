@@ -7,11 +7,6 @@ sig Nonce {}
 abstract sig MsgType {}
 one sig Msg1, Msg2 extends MsgType {}
 
-fact enoughMessageElements {
-	//#Nonce >= #Time //1, 3
-	//#Enc >= #Time
-}
-
 abstract sig Agent {
 	keys: Agent -> Key
 }
@@ -46,9 +41,8 @@ sig Enc {
 
 pred init (t: Time) {
 	all h: Honest | no h.(sent+received).t  //1, 3
-	some Intruder.nonces.t //2, 9
-	some Intruder.encs.t //9
-	//TODO: the intruder also knows some keys????
+	some Intruder.nonces.t //2, 7, 9
+	some Intruder.encs.t //7,8,9
 }
 
 pred noSentExcept [pre, post: Time, h: Honest, a: Agent, n: Nonce] {
@@ -79,10 +73,10 @@ pred fresh (n: Nonce, t: Time) { // This ensures that nonce n is fresh at time t
 	all m: Intruder.encs.t | m.nonce != n
 }
 
-// TODO: is a Honest or Agent??
+
 pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-  	fresh [n, pre] //1
+  	fresh [n, pre] //1,5
   	
   	// post-cond
   	a.sent.post [b, n] = Msg1
@@ -97,7 +91,7 @@ pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 
 pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-	n in Intruder.nonces.pre //2
+	n in Intruder.nonces.pre //2,6
   	
   	// post-cond
   	b.received.post [a, n] = Msg1
@@ -111,7 +105,7 @@ pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 
 pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
 	// pre-cond
-	fresh [n, pre] //3
+	fresh [n, pre] //3,5
 	m.id = b //FIX
 	a.(b.received.pre) [m.nonce] = Msg1
 	m.key = keys [b, a]
@@ -130,10 +124,10 @@ pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: En
 }
 
 pred msg2IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
-	// pre-cond - intruder
-	n in Intruder.nonces.pre
-	m in Intruder.encs.pre //TODO: can the intruder fabricate encoded messages?
-	// pre-cond - alice
+	// pre-cond - intruder //4,6
+	n in Intruder.nonces.pre 
+	m in Intruder.encs.pre
+	// pre-cond - alice //4,6
 	m.key = keys [a, b]
 	b.(a.sent.pre) [m.nonce] = Msg1
 	m.id = b //FIX
@@ -149,7 +143,7 @@ pred msg2IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: En
 }
 
 pred msg3HonestToIntruder[pre, post: Time, a: Honest, b: Honest, m: Enc] {
-	// pre-cond
+	// pre-cond //3,5
 	m.key = keys [a, b]
 	m.id = a //FIX
 	b.(a.received.pre) [m.nonce] = Msg2
@@ -166,8 +160,8 @@ pred msg3HonestToIntruder[pre, post: Time, a: Honest, b: Honest, m: Enc] {
 }
 
 pred msg3IntruderToHonest[pre, post: Time, a: Honest, b: Honest, m: Enc] {
-	// pre-cond
-	m in Intruder.encs.pre //TODO: can the intruder fabricate encoded messages?
+	// pre-cond //4,6
+	m in Intruder.encs.pre 
 	m.key = keys [a, b]
 	a.(b.sent.pre) [m.nonce] = Msg2
 	m.id = a //FIX
@@ -192,6 +186,7 @@ fact Traces {
 		msg3IntruderToHonest [t, t', a, b, m]
 	}
 }
+
 
 //Requirements
 
