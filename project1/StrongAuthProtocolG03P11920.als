@@ -91,7 +91,7 @@ pred msg1HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
 
 pred msg1IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce] {
   	// pre-cond
-	n in Intruder.nonces.pre or (some m:Enc | m.nonce = n and m.key in Intruder.keys [univ]) //2,6
+	n in Intruder.nonces.pre or (some m:Enc | m.nonce = n and m.key in Intruder.keys [univ]) //2,6,8
   	
   	// post-cond
   	b.received.post [a, n] = Msg1
@@ -107,7 +107,7 @@ pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: En
 	// pre-cond
 	fresh [n, pre] //3,5
 	m.id = b //FIX
-	a.(b.received.pre) [m.nonce] = Msg1
+	a.(b.received.pre) [m.nonce] = Msg1 //3
 	m.key = keys [b, a]
 
 	// post-cond
@@ -126,8 +126,8 @@ pred msg2HonestToIntruder[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: En
 pred msg2IntruderToHonest[pre, post: Time, a: Honest, b: Honest, n: Nonce, m: Enc] {
 
 	// pre-cond - intruder //4,6
-	n in Intruder.nonces.pre or (some m':Enc | m'.nonce = n and m'.key in Intruder.keys [univ])
-	m in Intruder.encs.pre
+	n in Intruder.nonces.pre or (some m':Enc | m'.nonce = n and m'.key in Intruder.keys [univ]) //8
+	m in Intruder.encs.pre or (m.key in Intruder.keys [univ] and m.nonce in Intruder.nonces.pre) //8
 	// pre-cond - alice //4,6
 	m.key = keys [a, b]
 	b.(a.sent.pre) [m.nonce] = Msg1
@@ -147,7 +147,7 @@ pred msg3HonestToIntruder[pre, post: Time, a: Honest, b: Honest, m: Enc] {
 	// pre-cond //3,5
 	m.key = keys [a, b]
 	m.id = a //FIX
-	b.(a.received.pre) [m.nonce] = Msg2
+	b.(a.received.pre) [m.nonce] = Msg2 //3
 
 	// post-cond
 	m in Intruder.encs.post
@@ -162,7 +162,7 @@ pred msg3HonestToIntruder[pre, post: Time, a: Honest, b: Honest, m: Enc] {
 
 pred msg3IntruderToHonest[pre, post: Time, a: Honest, b: Honest, m: Enc] {
 	// pre-cond //4,6
-	m in Intruder.encs.pre 
+	m in Intruder.encs.pre or (m.key in Intruder.keys [univ] and m.nonce in Intruder.nonces.pre) //8
 	m.key = keys [a, b]
 	a.(b.sent.pre) [m.nonce] = Msg2
 	m.id = a //FIX
@@ -178,7 +178,7 @@ pred msg3IntruderToHonest[pre, post: Time, a: Honest, b: Honest, m: Enc] {
 
 fact Traces {
 	first.init
-	all t: Time-last | let t' = t.next | some a : Honest, b: Honest, n: Nonce, m: Enc {
+	all t: Time-last | let t' = t.next | some a : Honest, b: Honest, n: Nonce, m: Enc { //9
 		msg1HonestToIntruder [t, t', a, b, n] or
 		msg1IntruderToHonest [t, t', a, b, n] or
 		msg2HonestToIntruder [t, t', a, b, n, m] or
