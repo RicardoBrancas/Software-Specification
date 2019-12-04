@@ -27,7 +27,7 @@ method Reverse(source: FileStream, src_len: int32, dest: FileStream)
   var lines := ReadLines(cont);
   var reversed := concat(reverse(lines));
 
-  assert FileOk(dest);
+  reverse_concat_keeps(lines);
 
   var ok1 := WriteFile(dest, reversed);
 }

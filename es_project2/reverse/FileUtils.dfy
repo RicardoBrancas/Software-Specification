@@ -84,47 +84,48 @@ method WriteFile(f: FileStream, s: seq<byte>) returns (ok: bool)
 method ReadLine(f: seq<byte>, start: nat) returns (next: nat, line:seq<byte>)
     requires 0 <= start < |f|
 
-    ensures start < next <= |f|
+    ensures start < next
+    ensures next <= |f|
     ensures next == |f| || f[next-1] == '\n' as byte
-    ensures forall k :: start <= k < next-1 ==> f[k] != '\n' as byte
     ensures line == f[start..next]
+    ensures forall k :: start <= k < next-1 ==> f[k] != '\n' as byte
 {
     next := start;
     line := [];
-    while (next < |f|)
+    while (next < |f| && f[next] != '\n' as byte)
         decreases |f| - next
         invariant start <= next <= |f|
         invariant line == f[start..next]
-        invariant forall k :: start <= k < next ==> f[k] != '\n' as byte
+        invariant '\n' as byte !in f[start..next]
     {
-        if (f[next] == '\n' as byte) {
-            line := line + [f[next]];
-            next := next + 1;
-            break;
-        }
-
         line := line + [f[next]];
         next := next + 1;
     }
+
+    if (next < |f| && f[next] == '\n' as byte) {
+        line := line + [f[next]];
+        next := next + 1;
+    }
+
+    //if (line[|line|-1] != '\n' as byte) {
+    //    line := line + ['\n' as byte];
+    //}
 }
 
-method ReadLines(f: seq<byte>) returns (lines: seq<seq<byte>>)
+method ReadLines(f: seq<byte>) returns (lines: List<seq<byte>>)
     ensures concat(lines) == f
-    //TODO
+    //ensures |lines| == count(f, '\n' as byte) + 1
 {
-    lines := [];
+    lines := Nil;
     var next := 0;
     var line := [];
-    while (next < |f|)
+    while (next != |f|)
         decreases |f| - next
+        invariant next <= |f|
+        invariant concat(lines) == f[..next]
     {
         next, line := ReadLine(f, next);
-        lines := lines + [line];
+        concat_unit(lines, line);
+        lines := append(lines, Cons(line, Nil));
     }
-}
-
-function method concat<T>(s: seq<seq<T>>): seq<T>
-    decreases s
-{
-    if (s == []) then [] else s[0] + concat(s[1..])
 }
