@@ -1,16 +1,5 @@
 datatype List<T> = Nil | Cons (head: T, tail: List)
 
-predicate non_empty<T>(l: List<T>) {
-    l != Nil
-}
-
-function method head<T>(l: List<T>): T
-requires non_empty(l)
-{
-    match l 
-        case Cons(h,t) => h
-}
-
 function method append<T>(l1: List<T>, l2: List<T>): List<T>
 decreases l1
 {

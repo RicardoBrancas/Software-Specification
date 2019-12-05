@@ -58,18 +58,33 @@ method ReadFile(f: FileStream, length: nat32) returns (ok: bool, result: seq<byt
 
     result := buffer[..];
 }
-/* 
+
+method WriteFile(f: FileStream, s: seq<byte>) returns (ok: bool)
+    requires FileOk(f)
+    requires -0x80000000 <= |s| < 0x80000000
+    requires len(f) == 0
+
+    modifies f
+    modifies f.env.ok
+    modifies f.env.files
+
+    ensures ok ==> FileOk(f)
+    ensures ok ==> len(f) == |s|
+{
+    var buffer := ArrayFromSeq(s);
+    ok := f.Write(0, buffer, 0, |s| as int32);
+    if (!ok) {
+        return;
+    }
+}
+
 method ReadLine(f: seq<byte>, start: nat) returns (next: nat, line:seq<byte>)
     requires 0 <= start < |f|
-    requires |f[start..]| > 0
 
-    ensures start < next
-    ensures next <= |f|
+    ensures start < next <= |f|
     ensures next == |f| || f[next-1] == '\n' as byte
     ensures line == f[start..next]
     ensures forall k :: start <= k < next-1 ==> f[k] != '\n' as byte
-
-    ensures line == head(lines(f[start..]))
 {
     next := start;
     line := [];
@@ -89,41 +104,21 @@ method ReadLine(f: seq<byte>, start: nat) returns (next: nat, line:seq<byte>)
     }
 }
 
-method ReadLines(f: seq<byte>) returns (l: List<seq<byte>>)
-    ensures l == lines(f)
+method ReadLines(f: seq<byte>) returns (lines: List<seq<byte>>)
+    ensures concat(lines) == f
     //ensures size(lines) == count(f, '\n' as byte) + 1
 {
-    l := Nil;
+    lines := Nil;
     var next := 0;
     var line := [];
     while (next != |f|)
         decreases |f| - next
         invariant next <= |f|
-        invariant l == lines(f[..next])
+        invariant concat(lines) == f[..next]
         //invariant size(lines) == count(f[..next], '\n' as byte)
     {
         next, line := ReadLine(f, next);
-        concat_unit(l, line);
-        l := append(l, Cons(line, Nil));
+        concat_unit(lines, line);
+        lines := append(lines, Cons(line, Nil));
     }
-}
-*/
-
-function method lines(s: seq<byte>): List<seq<byte>>
-    ensures |s| > 0 ==> non_empty(lines(s))
-    ensures |concat(lines(s))| <= |s|
-{
-  lines_aux(s, [])
-}
-
-function method lines_aux(s: seq<byte>, acum: seq<byte>): List<seq<byte>>
-    ensures non_empty(lines_aux(s, acum))
-    ensures |concat(lines_aux(s, acum))| <= |s|
-{
-  if s == [] then
-    Cons(acum, Nil)
-  else if s[0] == '\n' as byte then
-    Cons(acum, lines_aux(s[1..], []))
-  else
-    lines_aux(s[1..], acum + [s[0]])
 }

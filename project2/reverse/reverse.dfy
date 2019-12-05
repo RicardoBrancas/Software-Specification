@@ -6,7 +6,7 @@
 include "Io.dfy"
 include "FileUtils.dfy"
 
-method Reverse(source: FileStream, src_len: int32, dest: FileStream)
+method Reverse(source: FileStream, src_len: int32, dest: FileStream) returns (ok: bool)
   requires FileOk(source)
   requires FileOk(dest)
   requires src_len as int == len(source)
@@ -18,71 +18,62 @@ method Reverse(source: FileStream, src_len: int32, dest: FileStream)
   modifies dest
   modifies dest.env.ok
   modifies dest.env.files
+
+  ensures ok ==> FileOk(source)
+  ensures ok ==> FileOk(dest)
+  ensures ok ==> lines(content(dest)) == reverse(lines(content(source))) 
 {
-  var ok, cont := ReadFile(source, src_len as nat32);
+  var content;
+  ok, content := ReadFile(source, src_len as nat32);
   if (!ok) {
     return;
   }
 
-  var lines := ReadLines(cont);
-  var reversed := concat(reverse(lines));
-
+  var lines := lines(content);
+  var reversed_seq := concat(reverse(lines));
+  var reversed := ArrayFromSeq(reversed_seq);
   reverse_concat_keeps(lines);
-
-  var ok1 := WriteFile(dest, reversed);
+  ok := dest.Write(0, reversed, 0, |reversed_seq| as int32);
 }
 
-method {:main} Main(ghost env: HostEnvironment?)
-  requires env != null && env.Valid() && env.ok.ok();
+method {:main} Main(ghost env: HostEnvironment?) returns (ok: bool)
+  requires env != null && env.Valid() && env.ok.ok()
+  requires |env.constants.CommandLineArgs()| == 3
+  requires env.constants.CommandLineArgs()[1] in env.files.state()
+  requires env.constants.CommandLineArgs()[2] in env.files.state()
+  requires |env.files.state()[env.constants.CommandLineArgs()[2]]| == 0
+
   modifies env.ok
   modifies env.files
+
+  ensures ok ==> env.constants.CommandLineArgs()[1] in env.files.state()
+  ensures ok ==> env.constants.CommandLineArgs()[2] in env.files.state()
+  ensures ok ==> lines(env.files.state()[env.constants.CommandLineArgs()[2]]) == reverse(lines(env.files.state()[env.constants.CommandLineArgs()[1]]))
 {
-  var num_args := HostConstants.NumCommandLineArgs(env);
-
-  if (num_args != 3) {
-    print "Expected usage: reverse <source> <destination>\n";
-    return;
-  }
-
   var source := HostConstants.GetCommandLineArg(1, env);
-  var source_exists := FileStream.FileExists(source, env);
-
-  if (!source_exists) {
-    print ("Source file does not exist.\n");
-    return;
-  }
-
   var dest := HostConstants.GetCommandLineArg(2, env);
-  var dest_exists := FileStream.FileExists(dest, env);
 
-  if(dest_exists) {
-    print "Destination file exists! Aborting...\n";
-    return;
-  }
+  var src_file, dst_file;
+  var src_len;
 
-  var ok1, src_file := FileStream.Open(source, env);
-  if (!ok1) {
+  ok, src_file := FileStream.Open(source, env);
+  if (!ok) {
     print "Error while opening source file.\n";
     return;
   }
 
-  var ok2, dst_file := FileStream.Open(dest, env);
-  if (!ok2) {
+  ok, dst_file := FileStream.Open(dest, env);
+  if (!ok) {
     print "Error while opening destination file.\n";
     return;
   }
 
-  var ok3, src_len := FileStream.FileLength(source, env);
-  if (!ok3) {
-    print "Error while opening source file.\n";
+  ok, src_len := FileStream.FileLength(source, env);
+  if (!ok) {
+    print "Error while getting length of source file.\n";
     return;
   }
 
-  var ok4, dst_len := FileStream.FileLength(dest, env);
-  if (!ok4) {
-    print "Error while opening destination file.\n";
-    return;
-  }
-
-  Reverse(src_file, src_len, dst_file);
+  ok := Reverse(src_file, src_len, dst_file);
 }
+
