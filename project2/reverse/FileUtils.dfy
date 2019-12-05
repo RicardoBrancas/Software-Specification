@@ -106,10 +106,6 @@ method ReadLine(f: seq<byte>, start: nat) returns (next: nat, line:seq<byte>)
         line := line + [f[next]];
         next := next + 1;
     }
-
-    //if (line[|line|-1] != '\n' as byte) {
-    //    line := line + ['\n' as byte];
-    //}
 }
 
 method ReadLines(f: seq<byte>) returns (lines: List<seq<byte>>)
