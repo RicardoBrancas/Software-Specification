@@ -14,25 +14,25 @@ function method match_at(t: seq<byte>, p:seq<byte>, t_pos:nat): bool
     p <= t[t_pos..]
 }
 
-method first_match(t: seq<byte>, p:seq<byte>) returns (m: bool, n:nat)
+method first_match(t: seq<byte>, p:seq<byte>) returns (found: bool, s:nat)
   requires |t| != 0
-  ensures m ==> 0 <= n < |t|
-  ensures !m ==> 0 <= n <= |t|
-  ensures m ==> match_at(t, p, n)
-  ensures forall k :: 0 <= k < n ==> !match_at(t, p, k)
+  ensures found ==> 0 <= s < |t|
+  ensures !found ==> 0 <= s <= |t|
+  ensures found ==> match_at(t, p, s)
+  ensures forall k :: 0 <= k < s ==> !match_at(t, p, k)
 {
-  n := 0;
-  m := false;
-  while n < |t|
-    decreases |t| - n
-    invariant n <= |t|
-    invariant forall k :: 0 <= k < n ==> !match_at(t, p, k)
+  s := 0;
+  found := false;
+  while s < |t| - |p|
+    decreases |t| - s
+    invariant s <= |t|
+    invariant forall k :: 0 <= k < s ==> !match_at(t, p, k)
   {
-    if match_at(t, p, n) {
-      m := true;
+    if match_at(t, p, s) {
+      found := true;
       return;
     }
-    n := n + 1;
+    s := s + 1;
   }
 }
 
