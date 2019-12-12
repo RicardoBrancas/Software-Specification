@@ -1,8 +1,19 @@
-predicate prefix_suffix<T(==)>(S: seq<T>, k: nat)
-    requires 0 <= k <= |S|
+predicate proper_suffix<T(==)>(w:seq<T>, x:seq<T>)
+    requires |w| < |x|
+    ensures (|w| == 0 && |x| > 0) ==> proper_suffix(w, x)
 {
-    S[..k] == S[|S|-k..]
+    x[|x|-|w|..] == w
 }
+
+lemma proper_suffix_empty<T(==)>(s:seq<T>)
+    
+{}
+
+/*predicate suffix<T(==)>(w:seq<T>, x:seq<T>)
+    requires |w| <= |x|
+{
+    x[|x|-|w|..] == w
+}*/
 
 function method match_at<T(==)>(t: seq<T>, p:seq<T>, t_pos:nat): bool
     requires 0 <= t_pos < |t|
@@ -10,78 +21,61 @@ function method match_at<T(==)>(t: seq<T>, p:seq<T>, t_pos:nat): bool
     p <= t[t_pos..]
 }
 
-lemma smaller_prefix_suffix<T(==)>(P: seq<T>, k:nat, pik:nat)
-    requires 0 <= pik <= k < |P|
-    requires prefix_suffix(P, k)
-    requires prefix_suffix(P[..k], pik)
-    ensures prefix_suffix(P, pik)
-{}
-
-lemma subsubseq<T(==)>(S: seq<T>, i:nat, j:nat)
-    requires 0 <= i <= j <= |S|
-    ensures S[..j][..i] == S[..i]
-{}
-
-predicate lps<T(==)>(S: seq<T>, k:nat)
-    requires 0 <= k <= |S|
+predicate lps<T(==)>(S: seq<T>, q:nat, k:nat)
+    requires 0 <= k < q <= |S|
 {
-    (|S| == 0 || k < |S|) &&
-    prefix_suffix(S, k) &&
-    forall k' :: k <= k' < |S| ==> !prefix_suffix(S, k')
+    (k == 0 && q == 0) || (
+    proper_suffix(S[..k], S[..q])
+    && (forall k' :: k <= k' < q ==> !proper_suffix(S[..k'], S[..q]))
+    )
 }
 
-lemma larger_lps<T(==)>(P:seq<T>, k:nat, q:nat)
-    requires 0 <= k < q < |P|
-    requires lps(P[..q-1], k)
-    requires P[q] == P[k]
-    ensures lps(P[..q], k+1)
+lemma extend_lps<T(==)>(S: seq<T>, q:nat, k:nat)
+
 {}
 
 method PrefixFunction<T(==)>(P: seq<T>) returns (pi: array<int>)
     requires |P| > 1
 
-    ensures pi.Length == |P|
-    ensures forall i :: 0 <= i < |P| ==> 0 <= pi[i] <= i
-    ensures forall i :: 0 <= i < |P| ==> lps(P[..i], pi[i])
+    ensures pi.Length == |P|+1
+    ensures forall i :: 1 <= i < |P| ==> 0 <= pi[i] < i
+    ensures forall i :: 1 <= i < |P| ==> lps(P, i, pi[i])
 {
-    pi := new int[|P|];
-    pi[0] := 0;
+    pi := new int[|P|+1];
+    pi[1] := 0;
     var q := 1;
     var k := 0;
-    while q < pi.Length
+    while q < |P|
         decreases pi.Length - q
 
-        invariant pi.Length == |P|
+        invariant 0 <= k < q <= |P|
 
-        invariant 0 < q <= pi.Length
-        invariant 0 <= k <= q <= |P|
-        invariant forall i :: 0 <= i < q ==> 0 <= pi[i] <= i
-        invariant forall i :: 0 <= i < q ==> lps(P[..i], pi[i])
+        invariant pi[q] == k
+        invariant forall i :: 1 <= i < q ==> 0 <= pi[i] < i
+        invariant forall i :: 1 <= i < q ==> lps(P, i, pi[i])
+        invariant proper_suffix(P[..k], P[..q])
+        //invariant forall k' :: k < k' < q ==> !proper_suffix(P[..k'], P[..q])
     {
-        k := pi[q - 1];
-
-        while k > 0 && P[k] != P[q]
+        q := q + 1;
+        
+        while k > 0 && P[k] != P[q-1]
             decreases k
-            invariant 0 <= k < q
-            invariant k <= q-1
-            invariant forall i :: 0 <= i < q ==> 0 <= pi[i] <= i
-            invariant forall i :: 0 <= i < q ==> lps(P[..i], pi[i])
-            invariant prefix_suffix(P[..q-1], k)
+
+            invariant 0 <= k < |P|
+
+            invariant forall i :: 1 <= i < q ==> 0 <= pi[i] < i
+            invariant forall i :: 1 <= i < q-1 ==> lps(P, i, pi[i])
+            invariant proper_suffix(P[..k], P[..q-1])
+            //invariant forall k' :: k < k' < q-1 ==> !proper_suffix(P[..k'], P[..q-1])
         {
-            subsubseq(P, k, q-1);
-            smaller_prefix_suffix(P[..q-1], k, pi[k]);
-            k := pi[k - 1];
+            k := pi[k];
         }
 
-        assert prefix_suffix(P[..q-1], k);
-
-        if P[k] == P[q] {
-            larger_lps(P, k, q);
+        if P[k] == P[q-1] {
             k := k + 1;
         }
 
         pi[q] := k;
-        q := q + 1;
     }
 }
 
@@ -95,33 +89,34 @@ method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (m: bool, pos:nat)
     ensures m ==> match_at(T, P, pos)
     ensures forall k :: 0 <= k < pos ==> !match_at(T, P, k)
 {
-   var lsp := PrefixFunction(P);
-   var i, j := 0, 0;
-    while j < |P| && i < |T|
+   var pi := PrefixFunction(P);
+   var i, q := 0, 0;
+    while q < |P| && i < |T|
         decreases |T| - i
 
-        invariant 0 <= j <= |P|
-        invariant j <= i <= |T|
-        invariant T[i-j..i] == P[..j]
-        invariant forall k :: 0 <= k < i - j ==> !match_at(T, P, k)
+        invariant 0 <= q <= |P|
+        invariant q <= i <= |T|
+        invariant T[i-q..i] == P[..q]
+        invariant forall k :: 0 <= k < i - q ==> !match_at(T, P, k)
     {
-        while j > 0 && j < |P| && T[i] != P[j]
-            decreases j
-
-            invariant 0 <= j <= |P|
-            invariant j <= i <= |T|
-            //invariant T[i-j..i] == P[..j]
-            //invariant forall k :: 0 <= k < i - j ==> !match_at(T, P, k)   
-        {
-            j := lsp[j-1];
-        }
-
-        if T[i] == P[j] {
-            j := j + 1;
-        }
-
         i := i + 1;
+
+        while q > 0 && q < |P| && T[i-1] != P[q]
+            decreases q
+
+            invariant 0 <= q
+            invariant q <= |P|
+            invariant q <= i <= |T|
+            invariant T[i-1-q..i-1] == P[..q]
+            invariant forall k :: 0 <= k < i - q -1 ==> !match_at(T, P, k)   
+        {
+            q := pi[q];
+        }
+
+        if T[i-1] == P[q] {
+            q := q + 1;
+        }
     }
-    m := j == |T|;
-    pos := i - j;
+    m := q == |P|;
+    pos := i - q;
 }
