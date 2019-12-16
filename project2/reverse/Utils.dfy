@@ -1,74 +1,7 @@
-datatype List<T> = Nil | Cons (head: T, tail: List)
-
-predicate non_empty<T>(l: List<T>) {
-    l != Nil
-}
-
-function method head<T>(l: List<T>): T
-requires non_empty(l)
-{
-    match l 
-        case Cons(h,t) => h
-}
-
-function method append<T>(l1: List<T>, l2: List<T>): List<T>
-decreases l1
-{
-    match l1
-        case Nil => l2
-        case Cons(h, t) => Cons(h, append(t, l2))
-}
-
-function method size<T>(l: List<T>): nat
-    decreases l
-{
-    match l
-        case Nil => 0
-        case Cons(h, T) => 1 + size(T)
-}
-
-function method reverse(l: List): List
-    decreases l
-{
-    match l
-        case Nil => Nil
-        case Cons(h, T) => append(reverse(T), Cons (h, Nil))
-}
-
 method ArrayFromSeq<A>(s: seq<A>) returns (a: array<A>)
     ensures a[..] == s
 {
     a := new A[|s|] ( i requires 0 <= i < |s| => s[i] );
-}
-
-function method concat<T>(s: List<seq<T>>): seq<T>
-    decreases s
-{
-    match s
-        case Nil => []
-        case Cons(h, T) => h + concat(T)
-}
-
-lemma {:induction s} concat_unit<T>(s: List<seq<T>>, elem:seq<T>)
-    ensures concat(append(s, Cons(elem, Nil))) == concat(s) + elem
-{}
-
-lemma {:induction s} reverse_concat_keeps<T>(s: List<seq<T>>)
-    ensures |concat(s)| == |concat(reverse(s))|
-{
-    match s
-        case Nil => {}
-        case Cons(h, T) =>
-            calc == {
-                |concat(Cons(h, T))|;
-                |h + concat(T)|;
-                |h| + |concat(T)|;
-                |h| + |concat(reverse(T))|;
-                |concat(reverse(T))| + |h|;
-                |concat(reverse(T)) + h|;
-                == {concat_unit(reverse(T), h);}
-                |concat(append(reverse(T), Cons(h, Nil)))|;
-            }
 }
 
 function position1<T>(s: seq<T>, b: T): nat

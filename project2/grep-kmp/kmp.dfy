@@ -5,56 +5,57 @@ predicate proper_suffix<T(==)>(w:seq<T>, x:seq<T>)
     x[|x|-|w|..] == w
 }
 
-lemma proper_suffix_empty<T(==)>(s:seq<T>)
-    
-{}
-
-/*predicate suffix<T(==)>(w:seq<T>, x:seq<T>)
-    requires |w| <= |x|
+predicate matches<T(==)>(a1:seq<T>, i1: nat, a2:seq<T>, i2:nat, n:nat)
 {
-    x[|x|-|w|..] == w
-}*/
+    0 <= i1 <= |a1| - n &&
+    0 <= i2 <= |a2| - n &&
+    forall i :: 0 <= i < n ==> a1[i1+i] == a2[i2+i]
+}
 
-function method match_at<T(==)>(t: seq<T>, p:seq<T>, t_pos:nat): bool
-    requires 0 <= t_pos < |t|
+
+predicate method match_at<T(==)>(t: seq<T>, p:seq<T>, pos:nat)
+    requires 0 <= pos < |t|
 {
-    p <= t[t_pos..]
+    pos + |p| <= |t| && p == t[pos..pos+|p|]
+}
+
+predicate method match_at_end<T(==)>(t: seq<T>, p:seq<T>, pos:nat)
+    requires 0 <= pos < |t|
+{
+    0 <= pos - |p| && p == t[pos-|p|..pos]
+}
+
+predicate any_match<T(==)>(t: seq<T>, p:seq<T>, pos:nat)
+  decreases t
+  requires 0 <= pos <= |t|
+{
+  exists i :: 0 <= i < pos && match_at_end(t, p, i)
 }
 
 predicate lps<T(==)>(S: seq<T>, q:nat, k:nat)
-    requires 0 <= k < q <= |S|
 {
-    (k == 0 && q == 0) || (
-    proper_suffix(S[..k], S[..q])
-    && (forall k' :: k <= k' < q ==> !proper_suffix(S[..k'], S[..q]))
-    )
+    0 <= k < q <= |S|
+    && matches(S, q-k, S, 0, k)
+    && (forall k' :: k < k' < q ==> !matches(S, q-k', S, 0, k'))
 }
 
-lemma extend_lps<T(==)>(S: seq<T>, q:nat, k:nat)
-
-{}
-
-method PrefixFunction<T(==)>(P: seq<T>) returns (pi: array<int>)
-    requires |P| > 1
+method PrefixFunction<T(==)>(P: seq<T>) returns (pi: array<nat>)
+    requires |P| > 0
 
     ensures pi.Length == |P|+1
-    ensures forall i :: 1 <= i < |P| ==> 0 <= pi[i] < i
-    ensures forall i :: 1 <= i < |P| ==> lps(P, i, pi[i])
+    ensures forall i :: 0 < i < |P| ==> lps(P, i, pi[i])
 {
-    pi := new int[|P|+1];
+    pi := new nat[|P|+1];
     pi[1] := 0;
     var q := 1;
     var k := 0;
     while q < |P|
-        decreases pi.Length - q
+        decreases pi.Length - q, k
 
         invariant 0 <= k < q <= |P|
 
-        invariant pi[q] == k
-        invariant forall i :: 1 <= i < q ==> 0 <= pi[i] < i
-        invariant forall i :: 1 <= i < q ==> lps(P, i, pi[i])
-        invariant proper_suffix(P[..k], P[..q])
-        //invariant forall k' :: k < k' < q ==> !proper_suffix(P[..k'], P[..q])
+        invariant matches(P, q-k, P, 0, k)
+        invariant forall i :: 0 < i <= q ==> lps(P, i, pi[i])
     {
         q := q + 1;
         
@@ -63,31 +64,41 @@ method PrefixFunction<T(==)>(P: seq<T>) returns (pi: array<int>)
 
             invariant 0 <= k < |P|
 
-            invariant forall i :: 1 <= i < q ==> 0 <= pi[i] < i
-            invariant forall i :: 1 <= i < q-1 ==> lps(P, i, pi[i])
-            invariant proper_suffix(P[..k], P[..q-1])
-            //invariant forall k' :: k < k' < q-1 ==> !proper_suffix(P[..k'], P[..q-1])
+            invariant matches(P, q-k-1, P, 0, k)
+            invariant forall i :: 0 < i < q-1 ==> lps(P, i, pi[i])
         {
             k := pi[k];
         }
+
+        //assert k == 0 || P[k] == P[q-1];
+        //assert forall l :: l in ks ==> P[l] != P[q-1];
+
 
         if P[k] == P[q-1] {
             k := k + 1;
         }
 
+        //assert (k == 0 && P[0] != P[q-1]) || (k > 0 && P[k-1] == P[q-1]);
+        //assert forall l :: l in ks ==> P[l] != P[q-1];
+
+        //assert proper_suffix(P[..k], P[..q]);
+        //assert forall k' :: k < k' < q ==> !proper_suffix(P[..k'], P[..q]);
+
         pi[q] := k;
+
+        //assert forall i :: 1 <= i <= q ==> lps(P, i, pi[i]);
     }
 }
 
-method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (m: bool, pos:nat)
-    requires |P| > 1
+method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (found: bool, pos:nat)
+    requires |P| > 0
     requires |T| > 0
-    requires |T| >= |P|
 
-    ensures m ==> 0 <= pos < |T|
-    ensures !m ==> 0 <= pos <= |T|
-    ensures m ==> match_at(T, P, pos)
-    ensures forall k :: 0 <= k < pos ==> !match_at(T, P, k)
+    ensures any_match(T, P, |T|) <==> found
+    ensures found ==> 0 <= pos < |T|
+    ensures !found ==> 0 <= pos <= |T|
+    ensures found ==> match_at(T, P, pos)
+    ensures forall k :: 0 <= k < pos ==> !matches(T, k, P, 0, |P|)
 {
    var pi := PrefixFunction(P);
    var i, q := 0, 0;
@@ -96,19 +107,20 @@ method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (m: bool, pos:nat)
 
         invariant 0 <= q <= |P|
         invariant q <= i <= |T|
-        invariant T[i-q..i] == P[..q]
-        invariant forall k :: 0 <= k < i - q ==> !match_at(T, P, k)
+        invariant matches(T, i-q, P, 0, q)
+        invariant forall k :: 0 <= k < i - q ==> !matches(T, k, P, 0, q)
+        invariant q < |P| ==> !any_match(T, P, i)
     {
         i := i + 1;
 
         while q > 0 && q < |P| && T[i-1] != P[q]
             decreases q
 
-            invariant 0 <= q
-            invariant q <= |P|
+            invariant 0 <= q <= |P|
             invariant q <= i <= |T|
-            invariant T[i-1-q..i-1] == P[..q]
-            invariant forall k :: 0 <= k < i - q -1 ==> !match_at(T, P, k)   
+            invariant matches(T, i-q-1, P, 0, q)
+            invariant forall k :: 0 <= k < i - q -1 ==> !matches(T, k, P, 0, q)
+            invariant !any_match(T, P, i-1)
         {
             q := pi[q];
         }
@@ -117,6 +129,6 @@ method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (m: bool, pos:nat)
             q := q + 1;
         }
     }
-    m := q == |P|;
+    found := q == |P|;
     pos := i - q;
 }

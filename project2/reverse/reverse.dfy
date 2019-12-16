@@ -6,11 +6,54 @@
 include "Io.dfy"
 include "FileUtils.dfy"
 
+predicate is_rev_stream(s1: seq<byte>, s2: seq<byte>)
+{
+  s1 == join(reverse(lines(s2)))
+}
+
+function method {:verify false} lines(s: seq<byte>): seq<seq<byte>>
+    decreases s
+{
+  if s == [] then []
+  else
+    var nextl := next_line(s);
+    if nextl == [] then [] else [nextl] + lines(s[|nextl|+1..])
+}
+
+function method {:verify false} next_line(s: seq<byte>): seq<byte>
+  decreases s
+  requires 0 < |s|
+  ensures 0 < |next_line(s)|
+{
+  if s[0] != 10 then [s[0]] + next_line(s[1..]) else []
+}
+
+function method {:verify false} join(s: seq<seq<byte>>): seq<byte>
+  decreases s
+{
+  if s == [] then []
+  else s[0] + [10] + join(s[1..])
+}
+
+lemma {:verify false} join_lines_same_size(s:seq<byte>)
+  ensures |s| == |join(reverse(lines(s)))|
+{}
+
+function method reverse<T>(s: seq<T>): seq<T>
+  decreases s
+  ensures |s| == |reverse(s)|
+  ensures forall i :: 0 <= i < |s| ==> s[i] == reverse(s)[|s|-1-i]
+{
+  if s == [] then []
+  else [s[|s| - 1]] + reverse(s[..|s|-1])
+}
+
 method Reverse(source: FileStream, src_len: int32, dest: FileStream) returns (ok: bool)
   requires FileOk(source)
   requires FileOk(dest)
   requires src_len as int == len(source)
   requires len(dest) == 0
+  requires len(source) > 0
 
   modifies source
   modifies source.env.ok
@@ -21,18 +64,18 @@ method Reverse(source: FileStream, src_len: int32, dest: FileStream) returns (ok
 
   ensures ok ==> FileOk(source)
   ensures ok ==> FileOk(dest)
-  ensures ok ==> lines(content(dest)) == reverse(lines(content(source))) 
+  ensures ok ==> is_rev_stream(content(dest), content(source))
 {
-  var content;
-  ok, content := ReadFile(source, src_len as nat32);
+  var f_content;
+  ok, f_content := ReadFile(source, src_len as nat32);
   if (!ok) {
     return;
   }
 
-  var lines := lines(content);
-  var reversed_seq := join(reverse(lines));
+  var ls := lines(f_content);
+  var reversed_seq := join(reverse(ls));
   var reversed := ArrayFromSeq(reversed_seq);
-  reverse_concat_keeps(lines);
+  join_lines_same_size(f_content);
   ok := dest.Write(0, reversed, 0, |reversed_seq| as int32);
 }
 
@@ -45,10 +88,6 @@ method {:main} Main(ghost env: HostEnvironment?) returns (ok: bool)
 
   modifies env.ok
   modifies env.files
-
-  //ensures ok ==> env.constants.CommandLineArgs()[1] in env.files.state()
-  //ensures ok ==> env.constants.CommandLineArgs()[2] in env.files.state()
-  //ensures ok ==> lines(env.files.state()[env.constants.CommandLineArgs()[2]]) == reverse(lines(env.files.state()[env.constants.CommandLineArgs()[1]]))
 {
   var source := HostConstants.GetCommandLineArg(1, env);
   var dest := HostConstants.GetCommandLineArg(2, env);
@@ -69,11 +108,13 @@ method {:main} Main(ghost env: HostEnvironment?) returns (ok: bool)
   }
 
   ok, src_len := FileStream.FileLength(source, env);
-  if (!ok) {
+  if (!ok || src_len == 0) {
     print "Error while getting length of source file.\n";
     return;
   }
 
   ok := Reverse(src_file, src_len, dst_file);
+
+  assert ok ==> is_rev_stream(content(dst_file), content(src_file));
 }
 
