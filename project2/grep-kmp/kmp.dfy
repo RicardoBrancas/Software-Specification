@@ -1,10 +1,3 @@
-predicate proper_suffix<T(==)>(w:seq<T>, x:seq<T>)
-    requires |w| < |x|
-    ensures (|w| == 0 && |x| > 0) ==> proper_suffix(w, x)
-{
-    x[|x|-|w|..] == w
-}
-
 predicate matches<T(==)>(a1:seq<T>, i1: nat, a2:seq<T>, i2:nat, n:nat)
 {
     0 <= i1 <= |a1| - n &&
@@ -12,24 +5,11 @@ predicate matches<T(==)>(a1:seq<T>, i1: nat, a2:seq<T>, i2:nat, n:nat)
     forall i :: 0 <= i < n ==> a1[i1+i] == a2[i2+i]
 }
 
-
-predicate method match_at<T(==)>(t: seq<T>, p:seq<T>, pos:nat)
-    requires 0 <= pos < |t|
-{
-    pos + |p| <= |t| && p == t[pos..pos+|p|]
-}
-
-predicate method match_at_end<T(==)>(t: seq<T>, p:seq<T>, pos:nat)
-    requires 0 <= pos < |t|
-{
-    0 <= pos - |p| && p == t[pos-|p|..pos]
-}
-
 predicate any_match<T(==)>(t: seq<T>, p:seq<T>, pos:nat)
   decreases t
   requires 0 <= pos <= |t|
 {
-  exists i :: 0 <= i < pos && match_at_end(t, p, i)
+  exists i :: 0 <= i <= pos - |p| && matches(t, i, p, 0, |p|)
 }
 
 predicate lps<T(==)>(S: seq<T>, q:nat, k:nat)
@@ -97,7 +77,7 @@ method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (found: bool, pos:nat
     ensures any_match(T, P, |T|) <==> found
     ensures found ==> 0 <= pos < |T|
     ensures !found ==> 0 <= pos <= |T|
-    ensures found ==> match_at(T, P, pos)
+    ensures found ==> matches(T, pos, P, 0, |P|)
     ensures forall k :: 0 <= k < pos ==> !matches(T, k, P, 0, |P|)
 {
    var pi := PrefixFunction(P);
@@ -107,8 +87,9 @@ method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (found: bool, pos:nat
 
         invariant 0 <= q <= |P|
         invariant q <= i <= |T|
+        invariant forall k :: 0 < k < |P| ==> lps(P, k, pi[k])
         invariant matches(T, i-q, P, 0, q)
-        invariant forall k :: 0 <= k < i - q ==> !matches(T, k, P, 0, q)
+        invariant forall k :: 0 <= k < i - q ==> !matches(T, k, P, 0, |P|)
         invariant q < |P| ==> !any_match(T, P, i)
     {
         i := i + 1;
@@ -119,8 +100,10 @@ method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (found: bool, pos:nat
             invariant 0 <= q <= |P|
             invariant q <= i <= |T|
             invariant matches(T, i-q-1, P, 0, q)
-            invariant forall k :: 0 <= k < i - q -1 ==> !matches(T, k, P, 0, q)
             invariant !any_match(T, P, i-1)
+            invariant forall k :: 0 < k < |P| ==> lps(P, k, pi[k])
+            invariant forall k :: i - |P| < k <= i - q - 1 ==> !matches(T, k, P, 0, |P|)
+            invariant forall k :: 0 <= k < i - q - 1 ==> !matches(T, k, P, 0, |P|)
         {
             q := pi[q];
         }

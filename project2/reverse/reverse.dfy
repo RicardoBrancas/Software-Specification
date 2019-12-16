@@ -79,7 +79,7 @@ method Reverse(source: FileStream, src_len: int32, dest: FileStream) returns (ok
   ok := dest.Write(0, reversed, 0, |reversed_seq| as int32);
 }
 
-method {:main} Main(ghost env: HostEnvironment?) returns (ok: bool)
+method {:main} Main(ghost env: HostEnvironment?)
   requires env != null && env.Valid() && env.ok.ok()
   requires |env.constants.CommandLineArgs()| == 3
   requires env.constants.CommandLineArgs()[1] in env.files.state()
@@ -94,6 +94,8 @@ method {:main} Main(ghost env: HostEnvironment?) returns (ok: bool)
 
   var src_file, dst_file;
   var src_len;
+
+  var ok;
 
   ok, src_file := FileStream.Open(source, env);
   if (!ok) {
