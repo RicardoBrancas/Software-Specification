@@ -76,7 +76,6 @@ method Grep(file: FileStream, length: int32, pattern: seq<byte>) returns (ok:boo
   }
 
   found, s := first_match(cont, pattern);
-  
 }
 
 method {:main} Main(ghost env:HostEnvironment?)
@@ -85,6 +84,7 @@ method {:main} Main(ghost env:HostEnvironment?)
   modifies env.files
 {
   var num_args := HostConstants.NumCommandLineArgs(env);
+  var ok;
 
   if (num_args != 3) {
     print "Expected usage: grep <file>\n";
@@ -112,7 +112,21 @@ method {:main} Main(ghost env:HostEnvironment?)
     return;
   }
 
-  var ok, m, n := Grep(src_file, src_len, seqa2seqb(pattern[..]));
+  var found, pos;
+  ok, found, pos := Grep(src_file, src_len, seqa2seqb(pattern[..]));
+
+  if !ok {
+    print("Error while greping.\n");
+    return;
+  }
+
+  if (found) {
+    print "YES: ";
+    print pos;
+    print "\n";
+  } else {
+    print "NO\n";
+  }
 }
 
 function method {:verify false} seqa2seqb(s: seq<char>): seq<byte>

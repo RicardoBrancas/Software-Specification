@@ -37,7 +37,10 @@ method PrefixFunction<T(==)>(P: seq<T>) returns (pi: array<nat>)
         invariant matches(P, q-k, P, 0, k)
         invariant forall i :: 0 < i <= q ==> lps(P, i, pi[i])
     {
+        k := pi[q];
         q := q + 1;
+        
+        assert lps(P, q-1, k);
         
         while k > 0 && P[k] != P[q-1]
             decreases k
@@ -45,28 +48,16 @@ method PrefixFunction<T(==)>(P: seq<T>) returns (pi: array<nat>)
             invariant 0 <= k < |P|
 
             invariant matches(P, q-k-1, P, 0, k)
-            invariant forall i :: 0 < i < q-1 ==> lps(P, i, pi[i])
+            invariant forall i :: 0 < i <= q-1 ==> lps(P, i, pi[i])
         {
             k := pi[k];
         }
-
-        //assert k == 0 || P[k] == P[q-1];
-        //assert forall l :: l in ks ==> P[l] != P[q-1];
-
 
         if P[k] == P[q-1] {
             k := k + 1;
         }
 
-        //assert (k == 0 && P[0] != P[q-1]) || (k > 0 && P[k-1] == P[q-1]);
-        //assert forall l :: l in ks ==> P[l] != P[q-1];
-
-        //assert proper_suffix(P[..k], P[..q]);
-        //assert forall k' :: k < k' < q ==> !proper_suffix(P[..k'], P[..q]);
-
         pi[q] := k;
-
-        //assert forall i :: 1 <= i <= q ==> lps(P, i, pi[i]);
     }
 }
 
@@ -102,9 +93,9 @@ method Match<Type(==)>(T: seq<Type>, P: seq<Type>) returns (found: bool, pos:nat
             invariant matches(T, i-q-1, P, 0, q)
             invariant !any_match(T, P, i-1)
             invariant forall k :: 0 < k < |P| ==> lps(P, k, pi[k])
-            invariant forall k :: i - |P| < k <= i - q - 1 ==> !matches(T, k, P, 0, |P|)
             invariant forall k :: 0 <= k < i - q - 1 ==> !matches(T, k, P, 0, |P|)
         {
+            assert forall k :: 0 <= k < i - q - 1 ==> !matches(T, k, P, 0, |P|);
             q := pi[q];
         }
 

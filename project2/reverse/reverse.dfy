@@ -84,6 +84,7 @@ method {:main} Main(ghost env: HostEnvironment?)
   requires |env.constants.CommandLineArgs()| == 3
   requires env.constants.CommandLineArgs()[1] in env.files.state()
   requires env.constants.CommandLineArgs()[2] in env.files.state()
+  requires |env.files.state()[env.constants.CommandLineArgs()[1]]| > 0
   requires |env.files.state()[env.constants.CommandLineArgs()[2]]| == 0
 
   modifies env.ok
@@ -110,7 +111,7 @@ method {:main} Main(ghost env: HostEnvironment?)
   }
 
   ok, src_len := FileStream.FileLength(source, env);
-  if (!ok || src_len == 0) {
+  if (!ok) {
     print "Error while getting length of source file.\n";
     return;
   }
@@ -118,5 +119,10 @@ method {:main} Main(ghost env: HostEnvironment?)
   ok := Reverse(src_file, src_len, dst_file);
 
   assert ok ==> is_rev_stream(content(dst_file), content(src_file));
+
+  if (!ok) {
+    print "Error while reversing/writing.\n";
+    return;
+  }
 }
 

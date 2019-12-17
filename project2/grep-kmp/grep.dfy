@@ -20,8 +20,8 @@ method Grep(file: FileStream, length: int32, pattern: seq<byte>) returns (ok:boo
   ensures ok ==> FileOk(file)
   ensures ok ==> found ==> 0 <= s < |content(file)|
   ensures ok ==> !found ==> 0 <= s <= |content(file)|
-  ensures ok ==> found ==> match_at(content(file), pattern, s)
-  ensures ok ==> forall k :: 0 <= k < s ==> !match_at(content(file), pattern, k)
+  ensures ok ==> found ==> matches(content(file), s, pattern, 0, |pattern|)
+  ensures ok ==> forall k :: 0 <= k < s ==> !matches(content(file), k, pattern, 0, |pattern|)
 {
   var cont;
   ok, cont := ReadFile(file, length as nat32);
@@ -37,7 +37,7 @@ method Grep(file: FileStream, length: int32, pattern: seq<byte>) returns (ok:boo
   }
 
   if (|pattern| == 0) {
-    print "YES\n";
+    print "YES: 0\n";
     found := true;
     s := 0;
     return;
@@ -52,6 +52,7 @@ method {:main} Main(ghost env:HostEnvironment?)
   modifies env.files
 {
   var num_args := HostConstants.NumCommandLineArgs(env);
+  var ok;
 
   if (num_args != 3) {
     print "Expected usage: grep <file>\n";
@@ -67,19 +68,35 @@ method {:main} Main(ghost env:HostEnvironment?)
     return;
   }
 
-  var ok1, src_file := FileStream.Open(source, env);
-  if (!ok1) {
+  var src_file;
+  ok, src_file := FileStream.Open(source, env);
+  if (!ok) {
     print "Error while opening source file.\n";
     return;
   }
 
-  var ok2, src_len := FileStream.FileLength(source, env);
-  if (!ok2) {
+  var src_len;
+  ok, src_len := FileStream.FileLength(source, env);
+  if (!ok) {
     print "Error while opening source file.\n";
     return;
   }
 
-  var ok, m, n := Grep(src_file, src_len, seqa2seqb(pattern[..]));
+  var found, pos;
+  ok, found, pos := Grep(src_file, src_len, seqa2seqb(pattern[..]));
+
+  if !ok {
+    print("Error while greping.\n");
+    return;
+  }
+
+  if (found) {
+    print "YES: ";
+    print pos;
+    print "\n";
+  } else {
+    print "NO\n";
+  }
 }
 
 function method {:verify false} seqa2seqb(s: seq<char>): seq<byte>
