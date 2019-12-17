@@ -87,6 +87,8 @@ method {:main} Main(ghost env: HostEnvironment?)
   requires |env.files.state()[env.constants.CommandLineArgs()[1]]| > 0
   requires |env.files.state()[env.constants.CommandLineArgs()[2]]| == 0
 
+  // note assert in the end of the method
+
   modifies env.ok
   modifies env.files
 {
